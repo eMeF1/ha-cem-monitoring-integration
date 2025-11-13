@@ -3,9 +3,8 @@
   "name": "CEM Monitoring Integration",
   "version": "0.1.0",
   "documentation": "https://github.com/eMeF1/ha-cem-monitoring-integration",
-  "requirements": [],
+  "issue_tracker": "https://github.com/eMeF1/ha-cem-monitoring-integration/issues",
+  "dependencies": [],
   "codeowners": ["@eMeF1"],
-  "iot_class": "cloud_polling",
-  "config_flow": true,
-  "loggers": ["custom_components.cem_monitor"]
+  "requirements": []
 }

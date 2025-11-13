@@ -1,13 +1,11 @@
 {
   "name": "CEM Monitoring Integration",
-  "domains": ["cem_monitor"],
-  "country": ["CZ"],
-  "homeassistant": "2024.1.0",
   "render_readme": true,
-  "zip_release": true,
-  "filename": "cem_monitor.zip",
+  "country": [],
+  "domains": ["sensor"],
+  "homeassistant": "2024.2.0",
   "iot_class": "cloud_polling",
-  "persistent_directory": "custom_components/cem_monitor",
-  "documentation": "https://github.com/eMeF1/ha-cem-monitoring-integration",
-  "issue_tracker": "https://github.com/eMeF1/ha-cem-monitoring-integration/issues"
+  "zip_release": false,
+  "filename": "custom_components/cem_monitor",
+  "hide_default_branch": false
 }
