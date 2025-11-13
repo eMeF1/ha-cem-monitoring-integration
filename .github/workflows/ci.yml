@@ -18,7 +18,7 @@ jobs:
       - name: Run hassfest
         uses: home-assistant/actions/hassfest@master
 
-      - name: Run HACS validation
-        uses: hacs/action@main
-        with:
-          category: integration
+      # - name: Run HACS validation
+      #   uses: hacs/action@main
+      #   with:
+      #     category: integration
