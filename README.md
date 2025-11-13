@@ -1,9 +1,7 @@
-```
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
 ![Version](https://img.shields.io/github/v/release/eMeF1/ha-cem-monitoring-integration)
 ![Downloads](https://img.shields.io/github/downloads/eMeF1/ha-cem-monitoring-integration/total)
 ![License](https://img.shields.io/github/license/eMeF1/ha-cem-monitoring-integration)
-```
 
 # CEM Monitoring Integration — Home Assistant
 
