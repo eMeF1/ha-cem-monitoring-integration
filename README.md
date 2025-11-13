@@ -70,7 +70,9 @@ Read‑only. Minimal API load.
 3. Install **CEM Monitoring Integration**
 4. Restart Home Assistant
 
-[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=eMeF1&repository=ha-cem-monitoring-integration)
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](
+  https://my.home-assistant.io/redirect/hacs_repository/?owner=eMeF1&repository=ha-cem-monitoring-integration&category=integration
+)
 
 ### Manual
 Copy folder:
