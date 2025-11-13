@@ -1,119 +1,111 @@
+```
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
+![Version](https://img.shields.io/github/v/release/eMeF1/ha-cem-monitoring-integration)
+![Downloads](https://img.shields.io/github/downloads/eMeF1/ha-cem-monitoring-integration/total)
+![License](https://img.shields.io/github/license/eMeF1/ha-cem-monitoring-integration)
+```
+
 # CEM Monitoring Integration — Home Assistant
 
-A custom integration that pulls **CEM** account info, objects (places), meters, and **water readings** into Home Assistant.  
-**This project is not affiliated with CEM or Softlink. Use at your own risk.**
+A custom Home Assistant integration that retrieves **CEM account data, objects (places), meters, and water readings**. This project is community‑maintained and **not affiliated with CEM or Softlink**.
 
 ---
 
-## What it creates
-
-### Devices
-- **CEM Account _&lt;DISPLAY_NAME&gt;_**  
-  - `sensor.cem_account_<account_slug>_<company_id>_status` — connection status  
-    - attrs: `token_expires_at_iso`, `cookie_present`, `company_id`
-  - `sensor.cem_account_<account_slug>_<company_id>_account` — concise account info  
-    - attrs: `company_id`, `customer_id`, `person_id`, `company_name`, `display_name`, `login_valid_from`, `login_valid_to`
-
-- **CEM Object _&lt;OBJECT_NAME&gt;_** (one per `mis_id`)  
-  - **Water [SN]** sensors (one per selected counter / `var_id`)  
-    - device class: **water**  
-    - state class: **total_increasing**  
-    - unit: **m³** (liters are auto-converted to m³)  
-    - entity name includes **meter serial** when available; falls back to `me<id>`
-
-**Example**
-```
-Devices
-├─ CEM Account <DISPLAY_NAME>
-│  ├─ sensor.cem_account_<account_slug>_<company_id>_status
-│  └─ sensor.cem_account_<account_slug>_<company_id>_account
-└─ CEM Object <OBJECT_NAME>
-   ├─ sensor.cem_object_<object_slug>_water_[<serial_or_meid>]_var_<VAR_ID_1>
-   └─ sensor.cem_object_<object_slug>_water_[<serial_or_meid>]_var_<VAR_ID_2>
-```
-
-> Notes
-> - Account **device name** shows only the display name (e.g., “CEM Account &lt;DISPLAY_NAME&gt;”).  
-> - `<company_id>` is **kept in entity_ids** for uniqueness when multiple accounts are added.
+## Features
+- Login to CEM API
+- Fetch account information
+- Discover objects (`mis_id`)
+- Discover meters (`me_id`, including serial numbers)
+- Expose water counters (`var_id`) as `m³` sensors
+- Automatic device structure for account and objects
 
 ---
 
-## How data flows (CEM API)
+## Devices & Entities
 
-The integration performs these read-only calls:
+### **CEM Account <DISPLAY_NAME>**
+- **Account** (`sensor.cem_account_<slug>_<company_id>_account`)
+  - Attributes: `company_id`, `customer_id`, `person_id`, `company_name`, `display_name`, `login_valid_from`, `login_valid_to`
+- **Status** (`sensor.cem_account_<slug>_<company_id>_status`)
+  - Attributes: `token_expires_at_iso`, `cookie_present`, `company_id`
 
-1. **Login** — `id=4` → tokens/cookie  
-2. **User info** — `id=9` → `company_id`, display name  
-3. **Objects (places)** — `id=23` → list of `mis_id`, names  
-4. **Meters** — `id=108` → list of meters per object (`me_id`, `mis_id`, **`me_serial`**)  
-5. **Counters per meter** — `id=107` → `var_id` list and metadata  
-6. **Last counter readings** — `id=8` → `value`, `timestamp` per `var_id` (water sensors)
+### **CEM Object <OBJECT_NAME>**
+One device per `mis_id`.
+- **Water [<serial>|me<id>]** (`sensor.cem_object_<slug>_water_[<label>]_var_<var_id>`)  
+  - Device class: `water`
+  - Unit: `m³`
+  - Auto‑converted from liters
+  - Includes meter serial number when available
 
-Only water-like counters are exposed (by unit/name heuristics). If none match, all counters may be considered.
+Example structure:
+```
+CEM Account <DISPLAY_NAME>
+ ├─ sensor.cem_account_<slug>_<company_id>_status
+ └─ sensor.cem_account_<slug>_<company_id>_account
+CEM Object <OBJECT_NAME>
+ ├─ sensor.cem_object_<slug>_water_[sn]_var_12345
+ └─ sensor.cem_object_<slug>_water_[sn]_var_67890
+```
+
+---
+
+## API Usage
+This integration performs the following CEM API requests:
+1. **id=4** – Login
+2. **id=9** – User info
+3. **id=23** – Objects list
+4. **id=108** – Meters (serials, mappings)
+5. **id=107** – Counters per meter
+6. **id=8** – Last counter values
+
+Read‑only. Minimal API load.
 
 ---
 
 ## Installation
 
-### HACS (recommended)
-1. HACS → **Integrations** → **Custom repositories** → add this repo (category: *Integration*).
-2. Search for **“CEM Monitoring Integration”** → Install.
-3. **Restart Home Assistant**.
+### Via HACS (recommended)
+1. HACS → *Integrations* → *Custom repositories*
+2. Add repository URL (category: *Integration*)
+3. Install **CEM Monitoring Integration**
+4. Restart Home Assistant
 
 ### Manual
-1. Copy this repo to:  
-   `<config>/custom_components/cem_monitor`
-2. **Restart Home Assistant**.
+Copy folder:
+```
+<config>/custom_components/cem_monitor
+```
+Restart Home Assistant.
 
 ---
 
 ## Configuration
+1. Home Assistant → *Settings → Devices & Services → Add Integration*
+2. Search for **CEM Monitoring Integration**
+3. Login with your CEM credentials
 
-1. Home Assistant → **Settings** → **Devices & Services** → **Add Integration** → **CEM Monitoring Integration**.
-2. Enter **username** and **password**.
-3. The integration discovers your objects, meters, and water counters automatically.
-
-**Multiple accounts** are supported; entity IDs include `<company_id>` to avoid collisions.
-
----
-
-## Entity naming & IDs
-
-- **Account device name**: `CEM Account <DISPLAY_NAME>`  
-- **Account entities**:
-  - `sensor.cem_account_<account_slug>_<company_id>_status`
-  - `sensor.cem_account_<account_slug>_<company_id>_account`
-
-- **Object device name**: `CEM Object <OBJECT_NAME>` (falls back to `CEM Object <mis_id>`)  
-- **Water entity name**: `Water [<serial>|me<id>]`  
-- **Water entity_id** pattern:  
-  `sensor.cem_object_<object_slug>_water_[<serial_or_meid>]_var_<VAR_ID>`
-
----
-
-## Privacy & API usage
-
-- Credentials are stored by Home Assistant’s config entry system.
-- Tokens are cached and refreshed when needed.
-- The integration is **read-only** and uses a conservative polling cadence to limit API load.
+Multiple accounts are supported.
 
 ---
 
 ## Troubleshooting
+- **Names not updating** → Delete device + reload integration
+- **Statistics warnings** → Clear old statistics after changing units
+- **Missing serial numbers** → Not all CEM meters provide `me_serial`
 
-- **Names not updating**: Remove the device and re-add the integration, or reload the integration from Developer Tools → YAML.
-- **Statistics unit warnings**: Sensors report **m³**. If you previously had `None`/different units, clear old statistics in Developer Tools → Statistics.
-- **Missing serial in the name**: Some meters may not report `me_serial`. The sensor falls back to `me<id>`.
+---
+
+## Privacy
+- Credentials stored securely by Home Assistant
+- Only read‑only API calls are used
+- No data is transmitted to third parties
 
 ---
 
 ## Disclaimer
-
-This is an **unofficial** community project. It is not endorsed by, directly connected to, or supported by CEM.  
-Use at your own risk.
+This is an **unofficial** Home Assistant integration. Use at your own risk.
 
 ---
 
 ## License
-
 MIT
