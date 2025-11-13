@@ -1,12 +1,8 @@
 {
   "name": "CEM Monitoring Integration",
   "render_readme": true,
-  "country": [],
-  "domains": ["sensor"],
   "homeassistant": "2024.2.0",
-  "iot_class": "cloud_polling",
   "zip_release": false,
   "filename": "custom_components/cem_monitor",
-  "version": "0.1.2",
   "hide_default_branch": false
 }
