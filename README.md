@@ -1,7 +1,7 @@
-# CEM Monitor (Unofficial) — Home Assistant Integration
+# CEM Monitoring Integration — Home Assistant
 
-A custom integration that pulls **CEM** account, objects (places), meters, and **water readings** into Home Assistant.  
-**This project is not affiliated with CEM. Use at your own risk.**
+A custom integration that pulls **CEM** account info, objects (places), meters, and **water readings** into Home Assistant.  
+**This project is not affiliated with CEM or Softlink. Use at your own risk.**
 
 ---
 
@@ -57,7 +57,7 @@ Only water-like counters are exposed (by unit/name heuristics). If none match, a
 
 ### HACS (recommended)
 1. HACS → **Integrations** → **Custom repositories** → add this repo (category: *Integration*).
-2. Search for **“CEM Monitor (Unofficial)”** → Install.
+2. Search for **“CEM Monitoring Integration”** → Install.
 3. **Restart Home Assistant**.
 
 ### Manual
@@ -69,7 +69,7 @@ Only water-like counters are exposed (by unit/name heuristics). If none match, a
 
 ## Configuration
 
-1. Home Assistant → **Settings** → **Devices & Services** → **Add Integration** → **CEM Monitor (Unofficial)**.
+1. Home Assistant → **Settings** → **Devices & Services** → **Add Integration** → **CEM Monitoring Integration**.
 2. Enter **username** and **password**.
 3. The integration discovers your objects, meters, and water counters automatically.
 
