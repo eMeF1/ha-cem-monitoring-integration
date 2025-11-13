@@ -1,0 +1,55 @@
+# ---- Python ----
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyd
+*.pdb
+*.so
+*.egg-info/
+.eggs/
+.cache/
+.mypy_cache/
+.pytype/
+.pytest_cache/
+.dmypy.json
+.pyre/
+
+# ---- Home Assistant development ----
+*.log
+*.db
+*.db-shm
+*.db-wal
+
+# VSCode
+.vscode/
+
+# ---- Operating system files ----
+.DS_Store
+Thumbs.db
+
+# ---- Build / packaging ----
+build/
+dist/
+*.tar.gz
+*.zip
+
+# ---- HACS ----
+hacs/
+hacsfiles/
+
+# ---- GitHub Workflows Artifacts ----
+*.coverage
+coverage.xml
+htmlcov/
+
+# ---- Testing ----
+.tox/
+.nox/
+coverage/
+pytestdebug.log
+
+# ---- Editor backups ----
+*~
+*.swp
+*.swo
