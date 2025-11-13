@@ -1,0 +1,15 @@
+{
+  "title": "CEM Monitor",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to CEM",
+        "description": "Enter your CEM credentials.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    }
+  }
+}
