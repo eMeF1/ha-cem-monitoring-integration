@@ -3,6 +3,8 @@
 ![Downloads](https://img.shields.io/github/downloads/eMeF1/ha-cem-monitoring-integration/total)
 ![License](https://img.shields.io/github/license/eMeF1/ha-cem-monitoring-integration)
 
+
+
 # CEM Monitoring Integration — Home Assistant
 
 A custom Home Assistant integration that retrieves **CEM account data, objects (places), meters, and water readings**. This project is community‑maintained and **not affiliated with CEM or Softlink**.
@@ -67,6 +69,8 @@ Read‑only. Minimal API load.
 2. Add repository URL (category: *Integration*)
 3. Install **CEM Monitoring Integration**
 4. Restart Home Assistant
+
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=eMeF1&repository=ha-cem-monitoring-integration)
 
 ### Manual
 Copy folder:
