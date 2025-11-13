@@ -1,0 +1,31 @@
+from __future__ import annotations
+from homeassistant.const import Platform
+
+DOMAIN = "cem_monitor"
+
+# Endpoints
+AUTH_URL = "https://cemapi.unimonitor.eu/api?id=4"
+USERINFO_URL = "https://cemapi.unimonitor.eu/api?id=9"     # user/company meta
+OBJECTS_URL = "https://cemapi.unimonitor.eu/api?id=23"     # list of objects -> mis_id[]
+METERS_URL = "https://cemapi.unimonitor.eu/api?id=108"     # list of meters -> me_id (optionally by mis)
+COUNTERS_BY_METER_URL = "https://cemapi.unimonitor.eu/api?id=107"  # counters by meter -> var_id (requires me_id)
+WATER_LAST_URL = "https://cemapi.unimonitor.eu/api?id=8"   # last reading per var_id
+
+# Update cadence defaults
+DEFAULT_UPDATE_INTERVAL_SECONDS = 1800  # auth: fallback scheduling (will be adjusted to expiry)
+
+# Config keys
+CONF_USERNAME = "username"
+CONF_PASSWORD = "password"
+
+# Optional legacy options (CSV allow-list)
+CONF_VAR_ID = "var_id"
+CONF_VAR_IDS = "var_ids"
+CONF_VAR_IDS_CSV = "var_ids_csv"
+
+# Diagnostic attrs
+ATTR_TOKEN_EXPIRES_AT = "token_expires_at"
+ATTR_TOKEN_EXPIRES_IN = "token_expires_in_sec"
+ATTR_COOKIE_PRESENT = "cookie_present"
+
+PLATFORMS: list[Platform] = [Platform.SENSOR]
