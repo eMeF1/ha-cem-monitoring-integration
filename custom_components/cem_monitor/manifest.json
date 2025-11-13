@@ -1,6 +1,7 @@
 {
   "domain": "cem_monitor",
   "name": "CEM Monitoring Integration",
+  "codeowners": ["@eMeF1"],
   "config_flow": true,
   "documentation": "https://github.com/eMeF1/ha-cem-monitoring-integration",
   "iot_class": "cloud_polling",
