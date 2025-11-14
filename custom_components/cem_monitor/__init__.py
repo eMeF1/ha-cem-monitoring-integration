@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
@@ -107,7 +107,7 @@ def _resolve_object_name(
 # HA entry points
 # ----------------------------
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
-    """Set up CEM Monitor from a config entry."""
+    """Set up CEM Monitoring Integration from a config entry."""
     session = async_get_clientsession(hass)
     client = CEMClient(session)
 
@@ -214,14 +214,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             "selected_var_ids": selected_var_ids,
         }
 
-    # After wiring all meters and water coordinators, set up a periodic refresh
+    # Periodic refresh for all water coordinators (id=8)
+    @callback
     def _water_refresh_callback(now) -> None:
-        """Periodic refresh for all water coordinators (id=8)."""
         water_map_local: Dict[int, CEMWaterCoordinator] = bag.get("water", {})
         count = len(water_map_local)
         _LOGGER.debug("CEM water: scheduled refresh tick (%d coordinators)", count)
         for coord in water_map_local.values():
-            coord.async_request_refresh()
+            # schedule the coroutine properly
+            hass.async_create_task(coord.async_request_refresh())
 
     # Run every 5 minutes
     bag["water_refresh_unsub"] = async_track_time_interval(
