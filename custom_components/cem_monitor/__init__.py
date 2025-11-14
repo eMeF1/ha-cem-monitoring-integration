@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import timedelta
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_interval
 
 from .const import DOMAIN
 from .api import CEMClient
@@ -212,6 +214,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             "selected_var_ids": selected_var_ids,
         }
 
+    # After wiring all meters and water coordinators, set up a periodic refresh
+    def _water_refresh_callback(now) -> None:
+        """Periodic refresh for all water coordinators (id=8)."""
+        water_map_local: Dict[int, CEMWaterCoordinator] = bag.get("water", {})
+        count = len(water_map_local)
+        _LOGGER.debug("CEM water: scheduled refresh tick (%d coordinators)", count)
+        for coord in water_map_local.values():
+            coord.async_request_refresh()
+
+    # Run every 5 minutes
+    bag["water_refresh_unsub"] = async_track_time_interval(
+        hass, _water_refresh_callback, timedelta(minutes=5)
+    )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
@@ -219,5 +235,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+        bag = hass.data[DOMAIN].pop(entry.entry_id, None)
+        if bag is not None:
+            unsub = bag.get("water_refresh_unsub")
+            if callable(unsub):
+                unsub()
     return unload_ok
