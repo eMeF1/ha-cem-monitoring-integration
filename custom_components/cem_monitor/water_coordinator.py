@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .coordinator import CEMAuthCoordinator
 from .api import CEMClient
 from .const import DOMAIN
+import time
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,10 +26,18 @@ class CEMWaterCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Fetches water consumption using id=8 for a specific var_id."""
 
     def __init__(self, hass: HomeAssistant, client: CEMClient, auth: CEMAuthCoordinator, var_id: int) -> None:
-        super().__init__(hass, logger=_LOGGER, name=f"{DOMAIN}_water_{var_id}", update_interval=timedelta(minutes=5))
+        super().__init__(
+            hass,
+            logger=_LOGGER,
+            name=f"{DOMAIN}_water_{var_id}",
+            update_interval=timedelta(minutes=1),
+        )
         self._client = client
         self._auth = auth
         self._var_id = int(var_id)
+
+        # Always call async_update_listeners() even if data hasn't changed
+        self.always_update = True
 
     @property
     def var_id(self) -> int:
@@ -60,4 +69,5 @@ class CEMWaterCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "value": reading.get("value"),
             "timestamp_ms": reading.get("timestamp_ms"),
             "timestamp_iso": _ms_to_iso(reading.get("timestamp_ms")),
+            "fetched_at": int(time.time() * 1000),  # ensures coordinator data always changes
         }

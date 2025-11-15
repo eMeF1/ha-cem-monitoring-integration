@@ -232,6 +232,7 @@ except Exception:
 class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
     """Water reading per var_id, attached to the Object device and named 'Water [SN]'."""
 
+    _attr_force_update = True
     _attr_has_entity_name = True
     _attr_icon = "mdi:water"
     # PRIMARY entity (no diagnostic category)
@@ -312,6 +313,12 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         name, unit = self._meta()
         company_id = (self._ui.data or {}).get("company_id")
 
+        last_poll_ms = data.get("fetched_at")
+        last_poll_iso = (
+            datetime.fromtimestamp(int(last_poll_ms) / 1000, tz=timezone.utc).isoformat()
+            if last_poll_ms is not None else None
+        )
+
         return {
             "company_id": company_id,
             "object_id": (self._counters.data or {}).get("mis_id"),
@@ -323,4 +330,6 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
             "reported_unit": unit,
             "reading_timestamp": data.get("timestamp_iso"),
             "reading_timestamp_ms": data.get("timestamp_ms"),
+            "last_poll": last_poll_iso,
+            "last_poll_ms": last_poll_ms,
         }
