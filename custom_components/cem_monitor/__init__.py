@@ -5,7 +5,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, callback, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
@@ -119,6 +119,76 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     auth = CEMAuthCoordinator(hass, entry)
     bag["coordinator"] = auth
     await auth.async_config_entry_first_refresh()
+
+    # Service: cem_monitor.get_raw -> fire event with raw JSON from selected endpoint
+    async def handle_get_raw(call: ServiceCall) -> None:
+        endpoint = call.data["endpoint"]
+        _LOGGER.debug("CEM get_raw service called: endpoint=%s, data=%s", endpoint, call.data)
+
+        # Ensure we have a valid token
+        token = auth.token
+        if not token:
+            await auth.async_request_refresh()
+            token = auth.token
+        if not token:
+            _LOGGER.error("CEM get_raw: no token available even after refresh")
+            return
+
+        cookie = auth._last_result.cookie_value if auth._last_result else None
+
+        try:
+            if endpoint == "user_info":
+                data = await client.get_user_info(token, cookie)
+            elif endpoint == "objects":
+                data = await client.get_objects(token, cookie)
+            elif endpoint == "meters":
+                mis_id = call.data.get("mis_id")
+                data = await client.get_meters(token, cookie, mis_id)
+            elif endpoint == "counters_by_meter":
+                me_id = call.data.get("me_id")
+                if me_id is None:
+                    _LOGGER.error("CEM get_raw: me_id is required for counters_by_meter")
+                    return
+                data = await client.get_counters_by_meter(int(me_id), token, cookie)
+            elif endpoint == "water_last":
+                var_id = call.data.get("var_id")
+                if var_id is None:
+                    _LOGGER.error("CEM get_raw: var_id is required for water_last")
+                    return
+                # For water_last we want the raw id=8 payload, not the processed dict,
+                # so we re-implement the call similar to CEMClient.get_water_consumption
+                from .const import WATER_LAST_URL
+                headers = await client._auth_headers(token, cookie)  # type: ignore[attr-defined]
+                url = f"{WATER_LAST_URL}&var_id={int(var_id)}"
+                from aiohttp import ClientTimeout
+                timeout = ClientTimeout(total=20)
+                async with client._session.get(url, headers=headers, timeout=timeout) as resp:  # type: ignore[attr-defined]
+                    resp.raise_for_status()
+                    text = await resp.text()
+                    _LOGGER.debug("CEM get_raw water_last: HTTP %s", resp.status)
+                    _LOGGER.debug("CEM get_raw water_last: raw body (first 300 chars): %s", text[:300])
+                    data = await resp.json(content_type=None)
+            else:
+                _LOGGER.error("CEM get_raw: unknown endpoint %s", endpoint)
+                return
+        except Exception as err:
+            _LOGGER.exception("CEM get_raw(%s) failed: %s", endpoint, err)
+            return
+
+        _LOGGER.info("CEM get_raw(%s) -> %s", endpoint, data)
+
+        # Fire an event with the raw JSON so you can inspect it
+        hass.bus.async_fire(
+            f"{DOMAIN}_raw_response",
+            {
+                "endpoint": endpoint,
+                "data": data,
+                "context_id": call.context.id,
+            },
+        )
+
+    hass.services.async_register(DOMAIN, "get_raw", handle_get_raw)
+
 
     # 2) Account info (id=9)
     ui = CEMUserInfoCoordinator(hass, client, auth)

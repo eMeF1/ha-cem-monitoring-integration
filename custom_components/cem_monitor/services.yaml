@@ -1,0 +1,51 @@
+get_raw:
+  name: Get raw CEM response
+  description: Call a CEM endpoint and fire an event with the raw JSON payload.
+  fields:
+    endpoint:
+      name: Endpoint
+      description: Which CEM endpoint to call.
+      example: user_info
+      required: true
+      selector:
+        select:
+          mode: dropdown
+          options:
+            - user_info
+            - objects
+            - meters
+            - counters_by_meter
+            - water_last
+
+    mis_id:
+      name: Object ID (mis_id)
+      description: Used with the meters endpoint (optional).
+      required: false
+      example: 133
+      selector:
+        number:
+          min: 0
+          max: 999999999
+          mode: box
+
+    me_id:
+      name: Meter ID (me_id)
+      description: Used with the counters_by_meter endpoint (optional).
+      required: false
+      example: 41020614
+      selector:
+        number:
+          min: 0
+          max: 999999999
+          mode: box
+
+    var_id:
+      name: Counter ID (var_id)
+      description: Used with the water_last endpoint (optional).
+      required: false
+      example: 104437
+      selector:
+        number:
+          min: 0
+          max: 999999999
+          mode: box
