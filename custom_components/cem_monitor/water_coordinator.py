@@ -30,7 +30,7 @@ class CEMWaterCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             logger=_LOGGER,
             name=f"{DOMAIN}_water_{var_id}",
-            update_interval=timedelta(minutes=1),
+            update_interval=timedelta(minutes=5),
         )
         self._client = client
         self._auth = auth

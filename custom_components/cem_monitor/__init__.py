@@ -226,7 +226,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # Run every 5 minutes
     bag["water_refresh_unsub"] = async_track_time_interval(
-        hass, _water_refresh_callback, timedelta(minutes=1)
+        hass, _water_refresh_callback, timedelta(minutes=5)
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
