@@ -136,11 +136,13 @@ class CEMApiStatusSensor(CoordinatorEntity[CEMAuthCoordinator], SensorEntity):
         self._attr_suggested_object_id = f"cem_account_{_slug_text(name_label)}_{_slug_int(company_id)}_status"
 
     async def async_added_to_hass(self) -> None:
-        # Rename the account device to EXACT "CEM Account <label>"
+        # First let CoordinatorEntity register the listener
+        await super().async_added_to_hass()
+
+        # Then rename the account device to EXACT "CEM Account "
         ui_data = self._ui.data or {}
         _company_id, label = _DeviceInfoHelper.account_label(ui_data)
         desired = _DeviceInfoHelper.desired_account_name(label)
-
         devreg = dr.async_get(self.hass)
         device = devreg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id, "account")})
         if device and device.name != desired:
@@ -187,10 +189,12 @@ class CEMAccountSensor(CoordinatorEntity[CEMUserInfoCoordinator], SensorEntity):
         self._attr_suggested_object_id = f"cem_account_{_slug_text(name_label)}_{_slug_int(company_id)}_account"
 
     async def async_added_to_hass(self) -> None:
+        # First let CoordinatorEntity register the listener
+        await super().async_added_to_hass()
+
         ui_data = self.coordinator.data or {}
         _company_id, label = _DeviceInfoHelper.account_label(ui_data)
         desired = _DeviceInfoHelper.desired_account_name(label)
-
         devreg = dr.async_get(self.hass)
         device = devreg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id, "account")})
         if device and device.name != desired:
@@ -271,6 +275,9 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         self._attr_suggested_object_id = f"cem_object_{mis_slug}_water_{label}_{var_id}"
 
     async def async_added_to_hass(self) -> None:
+        # First let CoordinatorEntity register the listener
+        await super().async_added_to_hass()
+
         # Ensure the Object device has the desired name
         devreg = dr.async_get(self.hass)
         device = devreg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id, f"mis:{self._mis_id}")})
