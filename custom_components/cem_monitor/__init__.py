@@ -233,8 +233,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     token = auth.token
     cookie = auth._last_result.cookie_value if auth._last_result else None
 
-    if token:
+    if token and meters_list:
         met_ids_seen: set[int] = set()
+        _LOGGER.debug("CEM pot_types: meters_list has %d entries", len(meters_list))
+
         for m in meters_list:
             # met_id can be stored under different keys, be defensive
             met_id_raw = m.get("met_id") or m.get("metId")
@@ -251,6 +253,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             met_ids_seen.add(met_id_int)
 
             try:
+                _LOGGER.debug("CEM pot_types: fetching pot types for met_id=%s", met_id_int)
                 pot_payload = await client.get_pot_types(met_id_int, token, cookie)
                 # id=222 returns {"data": [...], "action": "get"}
                 pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
@@ -270,18 +273,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     pot_by_id[pid_int] = p
             except Exception as err:
                 _LOGGER.debug("CEM pot_types(met_id=%s) failed: %s", met_id_int, err)
-
     else:
-        _LOGGER.warning("CEM pot_types: no auth token available, skipping id=222")
+        if not token:
+            _LOGGER.warning("CEM pot_types: no auth token available, skipping id=222")
+        elif not meters_list:
+            _LOGGER.debug("CEM pot_types: meters_list is empty, skipping id=222")
 
     bag["pot_types"] = pot_by_id
-    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
+    _LOGGER.debug(
+        "CEM pot_types: loaded %d pot/unit definitions from %s met_ids",
+        len(pot_by_id),
+        "no" if not token or not meters_list else "some",
+    )
 
 
 
 
-
-    # 5) For each meter: fetch counters (id=107), pick water counters, wire water (id=8)
+    # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
     for m in meters_list:
         me_id = _ival(m, "me_id", "meid", "meId")
         if me_id is None:
@@ -299,26 +307,54 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         await mc.async_config_entry_first_refresh()
         counters = (mc.data or {}).get("counters") or []
 
-        # Select "water-ish" counters first; else fall back to all
+        # Build metadata for each counter and decide which ones to expose
+        meter_counters_meta: Dict[int, Dict[str, Any]] = {}
         selected_var_ids: List[int] = []
+
         for c in counters:
-            vid = _ival(c, "var_id", "varid", "varId")
-            unit = _snonempty(c.get("unit"), c.get("jednotka"))
-            name = _snonempty(c.get("name"), c.get("var_name"), c.get("poc_extid"))
+            # Many coordinators wrap the raw CEM record under "raw"
+            raw_c = c.get("raw") if isinstance(c, dict) else None
+            if not isinstance(raw_c, dict):
+                raw_c = c if isinstance(c, dict) else {}
+
+            vid = _ival(raw_c, "var_id", "varid", "varId")
             if vid is None:
                 continue
-            if unit and unit.lower() in {"l", "liter", "litre", "liters", "litres", "m3", "m³"}:
-                selected_var_ids.append(int(vid))
-            elif name and "vod" in name.lower():
-                selected_var_ids.append(int(vid))
-        if not selected_var_ids and counters:
-            selected_var_ids = [
-                int(_ival(c, "var_id", "varid", "varId"))
-                for c in counters
-                if _ival(c, "var_id", "varid", "varId") is not None
-            ]
+            vid = int(vid)
 
-        # Wire water coordinators
+            pot_id = _ival(raw_c, "pot_id", "potId")
+            pot_info = pot_by_id.get(pot_id) if pot_id is not None else None
+
+            pot_type: Optional[int] = None
+            if isinstance(pot_info, dict):
+                pt_raw = pot_info.get("pot_type")
+                try:
+                    pot_type = int(pt_raw) if pt_raw is not None else None
+                except Exception:
+                    pot_type = None
+
+            # pot_type meaning (CEM):
+            #   0 = instantaneous (measurement)
+            #   1 = cumulative (total)
+            #   2 = state / binary / special
+            #   3 = derived / profile / special cumulative
+            #
+            # For now we expose:
+            #   - type 0, 1, 3 as numeric sensors
+            #   - skip type 2 (door, contact, secure, etc.)
+            if pot_type == 2:
+                continue
+
+            meter_counters_meta[vid] = {
+                "var_id": vid,
+                "pot_id": pot_id,
+                "pot_type": pot_type,
+                "pot_info": pot_info,
+                "raw_counter": raw_c or c,
+            }
+            selected_var_ids.append(vid)
+
+        # Wire coordinators for all selected counters
         this_meter_water: Dict[int, CEMWaterCoordinator] = {}
         for vid in selected_var_ids:
             if vid not in water_map:
@@ -334,7 +370,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             "mis_name": mis_name,                      # resolved (or parent's name)
             "mis_name_source_mis_id": mis_name_source, # diagnostic
             "counters": mc,                            # coordinator (id=107)
-            "water": this_meter_water,                 # var_id -> water coordinator (id=8)
+            "counters_meta": meter_counters_meta,      # var_id -> pot/unit metadata
+            "water": this_meter_water,                 # var_id -> coordinator (id=8)
             "selected_var_ids": selected_var_ids,
         }
 
