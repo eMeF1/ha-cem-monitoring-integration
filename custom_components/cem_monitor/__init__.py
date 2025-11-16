@@ -227,6 +227,60 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # One water coordinator per var_id per account
     water_map: Dict[int, CEMWaterCoordinator] = bag.setdefault("water", {})
 
+    # NEW: Build pot_types mapping using id=222 (per met_id from meters)
+    pot_by_id: Dict[int, Dict[str, Any]] = {}
+
+    token = auth.token
+    cookie = auth._last_result.cookie_value if auth._last_result else None
+
+    if token:
+        met_ids_seen: set[int] = set()
+        for m in meters_list:
+            # met_id can be stored under different keys, be defensive
+            met_id_raw = m.get("met_id") or m.get("metId")
+            if met_id_raw is None:
+                continue
+            try:
+                met_id_int = int(met_id_raw)
+            except Exception:
+                continue
+
+            # Avoid calling id=222 multiple times for the same met_id
+            if met_id_int in met_ids_seen:
+                continue
+            met_ids_seen.add(met_id_int)
+
+            try:
+                pot_payload = await client.get_pot_types(met_id_int, token, cookie)
+                # id=222 returns {"data": [...], "action": "get"}
+                pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
+                if not isinstance(pot_list, list):
+                    _LOGGER.debug("CEM pot_types(met_id=%s): unexpected response %r", met_id_int, pot_payload)
+                    continue
+
+                for p in pot_list:
+                    pid = p.get("pot_id")
+                    if pid is None:
+                        continue
+                    try:
+                        pid_int = int(pid)
+                    except Exception:
+                        continue
+                    # Last one wins if duplicates, which is fine – they should be identical
+                    pot_by_id[pid_int] = p
+            except Exception as err:
+                _LOGGER.debug("CEM pot_types(met_id=%s) failed: %s", met_id_int, err)
+
+    else:
+        _LOGGER.warning("CEM pot_types: no auth token available, skipping id=222")
+
+    bag["pot_types"] = pot_by_id
+    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
+
+
+
+
+
     # 5) For each meter: fetch counters (id=107), pick water counters, wire water (id=8)
     for m in meters_list:
         me_id = _ival(m, "me_id", "meid", "meId")

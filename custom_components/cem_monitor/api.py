@@ -221,3 +221,29 @@ class CEMClient:
                 raise ValueError(f"id=8 missing fields: {reading!r}")
 
             return {"value": float(value), "timestamp_ms": int(ts_ms)}
+        
+    async def get_pot_types(
+        self,
+        met_id: int,
+        token: str,
+        cookie: str | None,
+    ) -> dict:
+        """Get pot/unit types for a given meter (id=222)."""
+        url = f"https://cemapi.unimonitor.eu/api?id=222&met_id={int(met_id)}"
+
+        headers = await self._auth_headers(token, cookie)
+        timeout = ClientTimeout(total=20)
+
+        _LOGGER.debug("CEM API: GET %s", url)
+
+        async with self._session.get(url, headers=headers, timeout=timeout) as resp:
+            resp.raise_for_status()
+            text = await resp.text()
+            _LOGGER.debug(
+                "CEM pot_types: HTTP %s, raw body (first 300 chars): %s",
+                resp.status,
+                text[:300],
+            )
+            data = await resp.json(content_type=None)
+
+        return data
