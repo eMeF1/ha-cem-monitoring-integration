@@ -8,5 +8,5 @@
   "issue_tracker": "https://github.com/eMeF1/ha-cem-monitoring-integration/issues",
   "loggers": ["custom_components.cem_monitor"],
   "requirements": [],
-  "version": "0.3.0"
+  "version": "0.3.1"
 }
