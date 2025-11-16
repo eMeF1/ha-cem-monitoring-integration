@@ -54,7 +54,7 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
     ]
 
     meters_map: dict[int, dict] = data.get("meters_map", {})
-    # Create only WATER sensors per meter/var, attached to the OBJECT device (mis).
+    # Create generic counter sensors per meter/var, attached to the OBJECT device (mis).
     for me_id, meta in meters_map.items():
         counters: CEMMeterCountersCoordinator = meta["counters"]
         me_serial: Optional[str] = meta.get("me_serial")
@@ -62,12 +62,23 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
         mis_name: Optional[str] = meta.get("mis_name")
 
         water_map: dict[int, CEMWaterCoordinator] = meta.get("water", {})
+        counters_meta: dict[int, dict] = meta.get("counters_meta", {})
+
         for vid, wc in water_map.items():
+            meta_for_var = counters_meta.get(vid, {})
             entities.append(
-                CEMWaterSensor(
-                    wc, counters, ui, entry,
-                    me_id=me_id, var_id=vid,
-                    me_serial=me_serial, mis_id=mis_id, mis_name=mis_name
+                CEMCounterSensor(
+                    wc,
+                    counters,
+                    ui,
+                    entry,
+                    me_id=me_id,
+                    var_id=vid,
+                    me_serial=me_serial,
+                    mis_id=mis_id,
+                    mis_name=mis_name,
+                    pot_id=meta_for_var.get("pot_id"),
+                    pot_info=meta_for_var.get("pot_info"),
                 )
             )
 
@@ -226,23 +237,11 @@ class CEMAccountSensor(CoordinatorEntity[CEMUserInfoCoordinator], SensorEntity):
         }
 
 
-# WATER device class fallback
-try:
-    _WATER_DEVICE_CLASS = SensorDeviceClass.WATER
-except Exception:
-    _WATER_DEVICE_CLASS = SensorDeviceClass.VOLUME
-
-
-class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
-    """Water reading per var_id, attached to the Object device and named 'Water [SN]'."""
+class CEMCounterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
+    """Generic CEM counter reading per var_id, attached to the Object device."""
 
     _attr_force_update = True
     _attr_has_entity_name = True
-    _attr_icon = "mdi:water"
-    # PRIMARY entity (no diagnostic category)
-    _attr_device_class = _WATER_DEVICE_CLASS
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
-    _attr_native_unit_of_measurement = UnitOfVolume.CUBIC_METERS
     _attr_suggested_display_precision = 3
 
     def __init__(
@@ -256,6 +255,8 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         me_serial: Optional[str],
         mis_id: Optional[int],
         mis_name: Optional[str],
+        pot_id: Optional[int],
+        pot_info: Optional[dict[str, Any]],
     ) -> None:
         super().__init__(coordinator)
         self._entry = entry
@@ -266,13 +267,49 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         self._me_serial = me_serial
         self._mis_id = mis_id
         self._mis_name = mis_name
+        self._pot_id = pot_id
+        self._pot_info: dict[str, Any] = pot_info or {}
+        self._pot_type = self._pot_info.get("pot_type")
 
         label = me_serial if (isinstance(me_serial, str) and me_serial.strip()) else f"me{me_id}"
-        self._attr_name = f"Water [{label}]"
+
+        # Derive a base name from pot/unit info, fall back to generic "Meter"
+        unit_short = self._pot_info.get("jed_zkr")
+        lt_key = self._pot_info.get("lt_key")
+        if isinstance(lt_key, str) and lt_key.strip():
+            base_name = lt_key.strip()
+        elif isinstance(unit_short, str) and unit_short.strip():
+            base_name = unit_short.strip()
+        else:
+            base_name = "Meter"
+
+        self._attr_name = f"{base_name} [{label}]"
         self._attr_unique_id = f"{entry.entry_id}_mis_{mis_id}_me_{me_id}_var_{var_id}"
 
         mis_slug = _slug_text(mis_name if isinstance(mis_name, str) and mis_name.strip() else str(mis_id))
-        self._attr_suggested_object_id = f"cem_object_{mis_slug}_water_{label}_{var_id}"
+        self._attr_suggested_object_id = f"cem_object_{mis_slug}_meter_{label}_var_{var_id}"
+
+        # Decide unit and state/device classes
+        unit = (unit_short or "").strip() if isinstance(unit_short, str) else ""
+        pot_type = self._pot_type
+
+        # Defaults
+        self._attr_icon = "mdi:gauge"
+        self._attr_device_class = None
+        self._attr_native_unit_of_measurement = unit or None
+
+        if pot_type in (1, 3):
+            self._attr_state_class = SensorStateClass.TOTAL_INCREASING
+        else:
+            self._attr_state_class = SensorStateClass.MEASUREMENT
+
+        # Special-case: cumulative water volume meters in m³
+        if unit == "m³" and pot_type in (1, 3):
+            try:
+                self._attr_device_class = SensorDeviceClass.WATER
+            except Exception:
+                self._attr_device_class = SensorDeviceClass.VOLUME
+            self._attr_icon = "mdi:water"
 
     async def async_added_to_hass(self) -> None:
         # First let CoordinatorEntity register the listener
@@ -287,7 +324,12 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
 
     @property
     def device_info(self) -> DeviceInfo:
-        return _DeviceInfoHelper.build_object(self._entry, (self._ui.data or {}).get("company_id"), self._mis_id, self._mis_name)
+        return _DeviceInfoHelper.build_object(
+            self._entry,
+            (self._ui.data or {}).get("company_id"),
+            self._mis_id,
+            self._mis_name,
+        )
 
     def _meta(self) -> tuple[Optional[str], Optional[str]]:
         counters = (self._counters.data or {}).get("counters") or []
@@ -305,12 +347,20 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         value = data.get("value")
         if value is None:
             return None
-        _name, unit = self._meta()
-        if isinstance(unit, str) and unit.strip().lower() in {"l", "liter", "litre", "liters", "litres"}:
+
+        # Optional liters → m³ conversion for legacy counters
+        _name, reported_unit = self._meta()
+        target_unit = self._attr_native_unit_of_measurement
+        if (
+            isinstance(reported_unit, str)
+            and reported_unit.strip().lower() in {"l", "liter", "litre", "liters", "litres"}
+            and target_unit == "m³"
+        ):
             try:
-                return float(value) / 1000.0  # liters -> m³
+                return float(value) / 1000.0
             except Exception:
                 return value
+
         return value
 
     @property
@@ -323,10 +373,11 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         last_poll_ms = data.get("fetched_at")
         last_poll_iso = (
             datetime.fromtimestamp(int(last_poll_ms) / 1000, tz=timezone.utc).isoformat()
-            if last_poll_ms is not None else None
+            if last_poll_ms is not None
+            else None
         )
 
-        return {
+        attrs: dict[str, Any] = {
             "company_id": company_id,
             "object_id": (self._counters.data or {}).get("mis_id"),
             "object_name": self._mis_name,
@@ -340,3 +391,12 @@ class CEMWaterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
             "last_poll": last_poll_iso,
             "last_poll_ms": last_poll_ms,
         }
+
+        # Add pot/unit metadata if available
+        attrs["pot_id"] = self._pot_id
+        attrs["pot_type"] = self._pot_type
+        attrs["cem_unit_short"] = self._pot_info.get("jed_zkr")
+        attrs["cem_unit_name"] = self._pot_info.get("jed_nazev")
+        attrs["cem_lt_key"] = self._pot_info.get("lt_key")
+
+        return attrs
