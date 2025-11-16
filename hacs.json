@@ -3,6 +3,5 @@
   "render_readme": true,
   "homeassistant": "2024.2.0",
   "zip_release": false,
-  "filename": "custom_components/cem_monitor",
   "hide_default_branch": false
 }
