@@ -67,38 +67,32 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
         mis_name: Optional[str] = meta.get("mis_name")
 
         water_map: dict[int, CEMWaterCoordinator] = meta.get("water", {})
-
-        # Derive pot_id and pot_info for each var_id from the counters coordinator and global pot_types
-        counters_data = (counters.data or {}).get("counters") or []
+        counters_meta: dict[int, dict] = meta.get("counters_meta", {}) or {}
 
         for vid, wc in water_map.items():
             pot_id: Optional[int] = None
             pot_info: Optional[dict[str, Any]] = None
 
-            # Find the matching counter record for this var_id
-            for c in counters_data:
-                if not isinstance(c, dict):
-                    continue
-                try:
-                    c_var = c.get("var_id")
-                    if c_var is None:
-                        continue
-                    if int(c_var) != int(vid):
-                        continue
-                except Exception:
-                    continue
+            # 1) Prefer metadata precomputed in __init__.py
+            meta_for_var = counters_meta.get(int(vid)) or counters_meta.get(vid)
+            if isinstance(meta_for_var, dict):
+                pot_id = meta_for_var.get("pot_id")
+                pot_info = meta_for_var.get("pot_info")
 
-                # Once we have the right counter, resolve its pot_id
+            # 2) Fallback – if pot_info missing but pot_id known, use global pot_types
+            if pot_info is None and pot_id is not None:
                 try:
-                    c_pot = c.get("pot_id")
-                    if c_pot is not None:
-                        pot_id = int(c_pot)
+                    pot_info = pot_types.get(int(pot_id))
                 except Exception:
-                    pot_id = None
+                    pot_info = None
 
-                if pot_id is not None:
-                    pot_info = pot_types.get(pot_id)
-                break
+            _LOGGER.debug(
+                "CEMCounterSensor wiring: me_id=%s var_id=%s -> pot_id=%s pot_info_keys=%s",
+                me_id,
+                vid,
+                pot_id,
+                list(pot_info.keys()) if isinstance(pot_info, dict) else [],
+            )
 
             entities.append(
                 CEMCounterSensor(

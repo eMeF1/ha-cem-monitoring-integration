@@ -283,9 +283,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         # Counters (id=107&me_id)
         mc = CEMMeterCountersCoordinator(hass, client, auth, me_id=me_id, me_name=me_name, mis_id=mis_id)
         await mc.async_config_entry_first_refresh()
-        counters = (mc.data or {}).get("counters") or []
+        mc_data = mc.data or {}
+        counters = mc_data.get("counters") or []
+        raw_map: Dict[int, Dict[str, Any]] = mc_data.get("raw_map") or {}
 
-    # Build metadata for each counter and decide which ones to expose
+        # Build metadata for each counter and decide which ones to expose
         meter_counters_meta: Dict[int, Dict[str, Any]] = {}
         selected_var_ids: List[int] = []
 
@@ -293,13 +295,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             if not isinstance(c, dict):
                 continue
 
-            # Many coordinators wrap the raw CEM record under "raw"
-            raw_c = c.get("raw")
-            if not isinstance(raw_c, dict):
-                raw_c = c
-
-            # 1) Resolve var_id
-            vid_raw = raw_c.get("var_id") or c.get("var_id")
+            # 1) Resolve var_id from simplified counter
+            vid_raw = c.get("var_id")
             if vid_raw is None:
                 continue
             try:
@@ -307,7 +304,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             except Exception:
                 continue
 
-            # 2) Resolve pot_id and pot_info
+            # 2) Get the full raw counter for this var_id (includes pot_id)
+            raw_c = raw_map.get(vid) or {}
+            if not isinstance(raw_c, dict):
+                raw_c = {}
+
+            # 3) Resolve pot_id and pot_info
             pot_id_raw = raw_c.get("pot_id") or c.get("pot_id")
             pot_id_int: Optional[int] = None
             pot_info: Optional[Dict[str, Any]] = None
@@ -319,7 +321,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 if pot_id_int is not None:
                     pot_info = pot_by_id.get(pot_id_int)
 
-            # 3) Resolve pot_type from pot_info (CEM: 0=instantaneous,1=total,2=state,3=derived)
+            # 4) Resolve pot_type from pot_info (CEM: 0=instantaneous,1=total,2=state,3=derived)
             pot_type: Optional[int] = None
             if isinstance(pot_info, dict):
                 try:
@@ -349,7 +351,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             list(meter_counters_meta.keys()),
         )
 
-        # Wire coordinators for all selected counters
+        # Wire coordinators for all selected counters (unchanged)
         this_meter_water: Dict[int, CEMWaterCoordinator] = {}
         for vid in selected_var_ids:
             if vid not in water_map:
@@ -362,12 +364,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             "me_name": me_name,
             "me_serial": me_serial,
             "mis_id": mis_id,
-            "mis_name": mis_name,                      # resolved (or parent's name)
-            "mis_name_source_mis_id": mis_name_source, # diagnostic
-            "counters": mc,                            # coordinator (id=107)
-            "counters_meta": meter_counters_meta,      # var_id -> pot/unit metadata
-            "water": this_meter_water,                 # var_id -> coordinator (id=8)
-            "selected_var_ids": selected_var_ids,
+            "mis_name": mis_name,
+            "mis_name_source_mis_id": mis_name_source,
+            "counters": mc,
+            "counters_meta": meter_counters_meta,
+            "water": this_meter_water,
         }
 
     # Periodic refresh for all water coordinators (id=8)
