@@ -10,6 +10,10 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers import device_registry as dr
 
+import logging
+
+_LOGGER = logging.getLogger(__name__)
+
 from .const import (
     DOMAIN,
     ATTR_TOKEN_EXPIRES_AT,
@@ -45,6 +49,7 @@ def _slug_text(s: Optional[str]) -> str:
 
 async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
     data = hass.data[DOMAIN][entry.entry_id]
+    pot_types: dict[int, dict] = data.get("pot_types", {}) or {}
     auth: CEMAuthCoordinator = data["coordinator"]
     ui: CEMUserInfoCoordinator = data["userinfo"]
 
@@ -62,10 +67,39 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
         mis_name: Optional[str] = meta.get("mis_name")
 
         water_map: dict[int, CEMWaterCoordinator] = meta.get("water", {})
-        counters_meta: dict[int, dict] = meta.get("counters_meta", {})
+
+        # Derive pot_id and pot_info for each var_id from the counters coordinator and global pot_types
+        counters_data = (counters.data or {}).get("counters") or []
 
         for vid, wc in water_map.items():
-            meta_for_var = counters_meta.get(vid, {})
+            pot_id: Optional[int] = None
+            pot_info: Optional[dict[str, Any]] = None
+
+            # Find the matching counter record for this var_id
+            for c in counters_data:
+                if not isinstance(c, dict):
+                    continue
+                try:
+                    c_var = c.get("var_id")
+                    if c_var is None:
+                        continue
+                    if int(c_var) != int(vid):
+                        continue
+                except Exception:
+                    continue
+
+                # Once we have the right counter, resolve its pot_id
+                try:
+                    c_pot = c.get("pot_id")
+                    if c_pot is not None:
+                        pot_id = int(c_pot)
+                except Exception:
+                    pot_id = None
+
+                if pot_id is not None:
+                    pot_info = pot_types.get(pot_id)
+                break
+
             entities.append(
                 CEMCounterSensor(
                     wc,
@@ -77,8 +111,8 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
                     me_serial=me_serial,
                     mis_id=mis_id,
                     mis_name=mis_name,
-                    pot_id=meta_for_var.get("pot_id"),
-                    pot_info=meta_for_var.get("pot_info"),
+                    pot_id=pot_id,
+                    pot_info=pot_info,
                 )
             )
 
@@ -270,6 +304,13 @@ class CEMCounterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         self._pot_id = pot_id
         self._pot_info: dict[str, Any] = pot_info or {}
         self._pot_type = self._pot_info.get("pot_type")
+        _LOGGER.debug(
+            "CEMCounterSensor init: me_id=%s var_id=%s pot_id=%s pot_info_keys=%s",
+            self._me_id,
+            self._var_id,
+            self._pot_id,
+            list(self._pot_info.keys()),
+        )
 
         label = me_serial if (isinstance(me_serial, str) and me_serial.strip()) else f"me{me_id}"
 
