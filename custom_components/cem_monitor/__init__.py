@@ -227,7 +227,47 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # One water coordinator per var_id per account
     water_map: Dict[int, CEMWaterCoordinator] = bag.setdefault("water", {})
 
-    # 5) For each meter: fetch counters (id=107), pick water counters, wire water (id=8)
+    # NEW: Build pot_types mapping using global id=222 (no met_id needed)
+    pot_by_id: Dict[int, Dict[str, Any]] = {}
+
+    token = auth.token
+    cookie = auth._last_result.cookie_value if auth._last_result else None
+
+    if token:
+        try:
+            _LOGGER.debug("CEM pot_types: fetching global pot type list (id=222)")
+            pot_payload = await client.get_pot_types(token, cookie)
+            # id=222 returns {"data": [...], "action": "get"}
+            pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
+            if not isinstance(pot_list, list):
+                _LOGGER.debug("CEM pot_types: unexpected response %r", pot_payload)
+            else:
+                count = 0
+                for p in pot_list:
+                    pid = p.get("pot_id")
+                    if pid is None:
+                        continue
+                    try:
+                        pid_int = int(pid)
+                    except Exception:
+                        continue
+                    pot_by_id[pid_int] = p
+                    count += 1
+                _LOGGER.debug(
+                    "CEM pot_types: built mapping for %d pot_id values",
+                    count,
+                )
+        except Exception as err:
+            _LOGGER.debug("CEM pot_types: failed to fetch global pot types: %s", err)
+    else:
+        _LOGGER.warning("CEM pot_types: no auth token available, skipping id=222")
+
+    bag["pot_types"] = pot_by_id
+    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
+
+
+
+    # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
     for m in meters_list:
         me_id = _ival(m, "me_id", "meid", "meId")
         if me_id is None:
@@ -243,28 +283,75 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         # Counters (id=107&me_id)
         mc = CEMMeterCountersCoordinator(hass, client, auth, me_id=me_id, me_name=me_name, mis_id=mis_id)
         await mc.async_config_entry_first_refresh()
-        counters = (mc.data or {}).get("counters") or []
+        mc_data = mc.data or {}
+        counters = mc_data.get("counters") or []
+        raw_map: Dict[int, Dict[str, Any]] = mc_data.get("raw_map") or {}
 
-        # Select "water-ish" counters first; else fall back to all
+        # Build metadata for each counter and decide which ones to expose
+        meter_counters_meta: Dict[int, Dict[str, Any]] = {}
         selected_var_ids: List[int] = []
-        for c in counters:
-            vid = _ival(c, "var_id", "varid", "varId")
-            unit = _snonempty(c.get("unit"), c.get("jednotka"))
-            name = _snonempty(c.get("name"), c.get("var_name"), c.get("poc_extid"))
-            if vid is None:
-                continue
-            if unit and unit.lower() in {"l", "liter", "litre", "liters", "litres", "m3", "m³"}:
-                selected_var_ids.append(int(vid))
-            elif name and "vod" in name.lower():
-                selected_var_ids.append(int(vid))
-        if not selected_var_ids and counters:
-            selected_var_ids = [
-                int(_ival(c, "var_id", "varid", "varId"))
-                for c in counters
-                if _ival(c, "var_id", "varid", "varId") is not None
-            ]
 
-        # Wire water coordinators
+        for c in counters:
+            if not isinstance(c, dict):
+                continue
+
+            # 1) Resolve var_id from simplified counter
+            vid_raw = c.get("var_id")
+            if vid_raw is None:
+                continue
+            try:
+                vid = int(vid_raw)
+            except Exception:
+                continue
+
+            # 2) Get the full raw counter for this var_id (includes pot_id)
+            raw_c = raw_map.get(vid) or {}
+            if not isinstance(raw_c, dict):
+                raw_c = {}
+
+            # 3) Resolve pot_id and pot_info
+            pot_id_raw = raw_c.get("pot_id") or c.get("pot_id")
+            pot_id_int: Optional[int] = None
+            pot_info: Optional[Dict[str, Any]] = None
+            if pot_id_raw is not None:
+                try:
+                    pot_id_int = int(pot_id_raw)
+                except Exception:
+                    pot_id_int = None
+                if pot_id_int is not None:
+                    pot_info = pot_by_id.get(pot_id_int)
+
+            # 4) Resolve pot_type from pot_info (CEM: 0=instantaneous,1=total,2=state,3=derived)
+            pot_type: Optional[int] = None
+            if isinstance(pot_info, dict):
+                try:
+                    pt_raw = pot_info.get("pot_type")
+                    pot_type = int(pt_raw) if pt_raw is not None else None
+                except Exception:
+                    pot_type = None
+
+            # For now we expose:
+            #   - type 0, 1, 3 as numeric sensors
+            #   - skip type 2 (door, contact, secure, etc.)
+            if pot_type == 2:
+                continue
+
+            meter_counters_meta[vid] = {
+                "var_id": vid,
+                "pot_id": pot_id_int,
+                "pot_type": pot_type,
+                "pot_info": pot_info,
+                "raw_counter": raw_c,
+            }
+            selected_var_ids.append(vid)
+
+        _LOGGER.debug(
+            "CEM meter %s counters_meta built for var_ids=%s",
+            me_id,
+            list(meter_counters_meta.keys()),
+        )
+
+        # Wire coordinators for all selected counters (unchanged)
         this_meter_water: Dict[int, CEMWaterCoordinator] = {}
         for vid in selected_var_ids:
             if vid not in water_map:
@@ -277,11 +364,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             "me_name": me_name,
             "me_serial": me_serial,
             "mis_id": mis_id,
-            "mis_name": mis_name,                      # resolved (or parent's name)
-            "mis_name_source_mis_id": mis_name_source, # diagnostic
-            "counters": mc,                            # coordinator (id=107)
-            "water": this_meter_water,                 # var_id -> water coordinator (id=8)
-            "selected_var_ids": selected_var_ids,
+            "mis_name": mis_name,
+            "mis_name_source_mis_id": mis_name_source,
+            "counters": mc,
+            "counters_meta": meter_counters_meta,
+            "water": this_meter_water,
         }
 
     # Periodic refresh for all water coordinators (id=8)
