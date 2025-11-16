@@ -224,12 +224,11 @@ class CEMClient:
         
     async def get_pot_types(
         self,
-        met_id: int,
         token: str,
         cookie: str | None,
     ) -> dict:
-        """Get pot/unit types for a given meter (id=222)."""
-        url = f"https://cemapi.unimonitor.eu/api?id=222&met_id={int(met_id)}"
+        """Get global pot/unit types list (id=222)."""
+        url = "https://cemapi.unimonitor.eu/api?id=222"
 
         headers = await self._auth_headers(token, cookie)
         timeout = ClientTimeout(total=20)
