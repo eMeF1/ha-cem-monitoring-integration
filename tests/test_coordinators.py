@@ -120,7 +120,9 @@ class TestUserInfoCoordinator:
         async def get_user_info_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            if call_count < 3:  # Retry logic will retry, so need more attempts
+            # API client retries up to 3 times, so we need to succeed on the 4th call
+            # (initial attempt + 3 retries = 4 total attempts)
+            if call_count < 4:
                 raise ServerTimeoutError()
             return {"firma": "Test Co", "fir_id": 123}
 
@@ -131,8 +133,9 @@ class TestUserInfoCoordinator:
         result = await coordinator._async_update_data()
 
         assert result["company"] == "Test Co"
-        # Network errors are retried by API client (max 3 retries), so we should see 3 calls
-        assert call_count == 3
+        # Network errors are retried by API client (max 3 retries), so we should see 4 calls
+        # (1 initial + 3 retries)
+        assert call_count == 4
 
 
 class TestWaterCoordinator:
