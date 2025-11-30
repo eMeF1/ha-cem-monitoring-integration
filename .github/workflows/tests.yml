@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    # Run on all branches to catch issues early
   pull_request:
-    branches: [ main, develop ]
+    # Run on PRs to any branch
 
 jobs:
   test:
