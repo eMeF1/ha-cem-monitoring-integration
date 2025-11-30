@@ -10,6 +10,12 @@
           "password": "Password"
         }
       }
+    },
+    "error": {
+      "invalid_auth": "Invalid username or password",
+      "cannot_connect": "Unable to connect to CEM API. Please check your internet connection.",
+      "unknown": "Unexpected error occurred. Please try again.",
+      "already_configured": "This account is already configured. Please remove the existing configuration first or use a different account."
     }
   }
 }

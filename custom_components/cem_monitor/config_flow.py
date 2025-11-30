@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import logging
 import voluptuous as vol
+from aiohttp import ClientResponseError
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_VAR_IDS, CONF_VAR_IDS_CSV
+from .api import CEMClient
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _parse_csv_to_ints(csv: str) -> list[int]:
@@ -34,10 +40,27 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Prevent duplicate username entries
             for entry in self._async_current_entries():
                 if entry.data.get(CONF_USERNAME, "").strip().lower() == username_key:
-                    return self.async_abort(reason="already_configured")
+                    errors["base"] = "already_configured"
+                    return self.async_show_form(step_id="user", data_schema=self._schema(), errors=errors)
 
             await self.async_set_unique_id(f"{DOMAIN}_{username_key}")
             self._abort_if_unique_id_configured()
+
+            # Validate credentials
+            session = async_get_clientsession(self.hass)
+            client = CEMClient(session)
+            try:
+                await client.authenticate(username, password)
+            except ClientResponseError as err:
+                if err.status in (401, 403):
+                    errors["base"] = "invalid_auth"
+                else:
+                    errors["base"] = "cannot_connect"
+                return self.async_show_form(step_id="user", data_schema=self._schema(), errors=errors)
+            except Exception as err:
+                _LOGGER.exception("Unexpected error during authentication: %s", err)
+                errors["base"] = "unknown"
+                return self.async_show_form(step_id="user", data_schema=self._schema(), errors=errors)
 
             options: dict = {}
             csv_val = user_input.get(CONF_VAR_IDS_CSV, "") or ""
