@@ -10,7 +10,17 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 
-from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_VAR_IDS, CONF_VAR_IDS_CSV
+from .const import (
+    DOMAIN,
+    CONF_USERNAME,
+    CONF_PASSWORD,
+    CONF_VAR_IDS,
+    CONF_VAR_IDS_CSV,
+    CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
+    DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
+    MIN_COUNTER_UPDATE_INTERVAL_MINUTES,
+    MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
+)
 from .api import CEMClient, AuthResult
 
 _LOGGER = logging.getLogger(__name__)
@@ -402,10 +412,43 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
                 var_ids = _parse_csv_to_ints(user_input.get(CONF_VAR_IDS_CSV, ""))
             except Exception:
                 errors["base"] = "invalid_var_ids"
-            else:
-                return self.async_create_entry(title="", data={CONF_VAR_IDS: var_ids})
+            
+            # Validate counter update interval
+            interval = user_input.get(CONF_COUNTER_UPDATE_INTERVAL_MINUTES)
+            if interval is not None:
+                try:
+                    interval_int = int(interval)
+                    if interval_int < MIN_COUNTER_UPDATE_INTERVAL_MINUTES or interval_int > MAX_COUNTER_UPDATE_INTERVAL_MINUTES:
+                        errors[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = f"interval_range"
+                except (ValueError, TypeError):
+                    errors[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = "invalid_interval"
+            
+            if not errors:
+                options_data = {CONF_VAR_IDS: var_ids}
+                # Always store the interval (default is set in schema, so it's always present)
+                interval_value = int(interval) if interval is not None else DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
+                options_data[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = interval_value
+                return self.async_create_entry(title="", data=options_data)
 
-        existing = self._entry.options.get(CONF_VAR_IDS, [])
-        csv_default = ",".join(str(v) for v in existing)
-        schema = vol.Schema({vol.Required(CONF_VAR_IDS_CSV, default=csv_default): str})
+        existing_var_ids = self._entry.options.get(CONF_VAR_IDS, [])
+        csv_default = ",".join(str(v) for v in existing_var_ids)
+        existing_interval = self._entry.options.get(
+            CONF_COUNTER_UPDATE_INTERVAL_MINUTES, DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
+        )
+        
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_VAR_IDS_CSV, default=csv_default): str,
+                vol.Required(
+                    CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
+                    default=existing_interval,
+                ): vol.All(
+                    vol.Coerce(int),
+                    vol.Range(
+                        min=MIN_COUNTER_UPDATE_INTERVAL_MINUTES,
+                        max=MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
+                    ),
+                ),
+            }
+        )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

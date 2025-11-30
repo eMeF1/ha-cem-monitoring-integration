@@ -9,7 +9,12 @@ from homeassistant.core import HomeAssistant, callback, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DOMAIN, CONF_VAR_IDS
+from .const import (
+    DOMAIN,
+    CONF_VAR_IDS,
+    CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
+    DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
+)
 from .api import CEMClient
 from .coordinator import CEMAuthCoordinator
 from .userinfo_coordinator import CEMUserInfoCoordinator
@@ -385,6 +390,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         }
 
     # Periodic refresh for all water coordinators (id=8)
+    # Get configured update interval or use default (30 minutes)
+    update_interval_minutes = entry.options.get(
+        CONF_COUNTER_UPDATE_INTERVAL_MINUTES, DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
+    )
+    update_interval = timedelta(minutes=update_interval_minutes)
+    _LOGGER.debug("CEM: Counter update interval set to %d minutes", update_interval_minutes)
+
     @callback
     def _water_refresh_callback(now) -> None:
         water_map_local: Dict[int, CEMWaterCoordinator] = bag.get("water", {})
@@ -394,9 +406,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             # schedule the coroutine properly
             hass.async_create_task(coord.async_request_refresh())
 
-    # Run every 5 minutes
+    # Run at configured interval (default: 30 minutes)
     bag["water_refresh_unsub"] = async_track_time_interval(
-        hass, _water_refresh_callback, timedelta(minutes=5)
+        hass, _water_refresh_callback, update_interval
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
