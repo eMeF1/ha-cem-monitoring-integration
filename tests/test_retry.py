@@ -97,17 +97,15 @@ class TestRetryWithBackoff:
     async def test_max_retries_exceeded(self):
         """Test that max retries are respected."""
         import os
-        from aiohttp.connector import ConnectionKey
         call_count = 0
 
         async def func():
             nonlocal call_count
             call_count += 1
-            # Create proper ClientConnectorError with connection key
-            conn_key = ConnectionKey("http", "test.com", 80, False, None, None, None)
-            raise ClientConnectorError(conn_key, OSError("Connection failed"))
+            # Use ServerTimeoutError which is simpler and doesn't require ConnectionKey
+            raise ServerTimeoutError()
 
-        with pytest.raises(ClientConnectorError):
+        with pytest.raises(ServerTimeoutError):
             await async_retry_with_backoff(func, max_retries=2, initial_delay=0.1)
 
         assert call_count == 3  # Initial + 2 retries

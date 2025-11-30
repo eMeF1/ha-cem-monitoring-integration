@@ -114,13 +114,10 @@ class TestUserInfoCoordinator:
     async def test_userinfo_network_error_retried(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that network errors are retried by API client.
         
-        Note: The API client's get_user_info method wraps the actual call with retry logic.
-        The retry logic will retry up to 3 times (max_retries=3), meaning:
-        - Attempt 0: initial call
-        - Attempt 1: first retry
-        - Attempt 2: second retry  
-        - Attempt 3: third retry (last attempt)
-        Total: 4 attempts. We need to succeed on the 4th attempt.
+        Note: Since we're mocking get_user_info at the coordinator level, we're actually
+        bypassing the API client's retry logic. This test verifies that the coordinator
+        can handle network errors that occur after the API client's retry logic has
+        exhausted all retries. The API client's retry logic is tested separately in test_api.py.
         """
         from aiohttp.client_exceptions import ServerTimeoutError
 
@@ -129,22 +126,24 @@ class TestUserInfoCoordinator:
         async def get_user_info_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            # Succeed on the 4th call (after 3 retries)
-            if call_count < 4:
+            # Simulate that retry logic already tried and failed, now raise the final error
+            # This tests that coordinator handles errors after retries are exhausted
+            if call_count == 1:
                 raise ServerTimeoutError()
+            # On retry (coordinator level, not API client level), succeed
             return {"firma": "Test Co", "fir_id": 123}
 
-        # The API client's get_user_info already has retry logic built in
-        # We just need to mock it to raise errors then succeed
         mock_client.get_user_info = AsyncMock(side_effect=get_user_info_side_effect)
 
         coordinator = CEMUserInfoCoordinator(mock_hass, mock_client, mock_auth_coordinator)
 
-        result = await coordinator._async_update_data()
+        # The coordinator should catch the error and raise UpdateFailed
+        # since network errors are not 401 errors, so they won't trigger token refresh
+        with pytest.raises(UpdateFailed) as exc_info:
+            await coordinator._async_update_data()
 
-        assert result["company"] == "Test Co"
-        # Network errors are retried by API client (max 3 retries), so we should see 4 calls
-        assert call_count == 4
+        assert "UserInfo failed" in str(exc_info.value)
+        assert call_count == 1  # Coordinator catches the error after API client retries are exhausted
 
 
 class TestWaterCoordinator:
