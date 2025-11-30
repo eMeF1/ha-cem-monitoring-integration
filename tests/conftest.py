@@ -17,11 +17,25 @@ homeassistant_event_mock = MagicMock()
 
 # Set up the module structure
 sys.modules['homeassistant'] = homeassistant_mock
+# Create a mock HomeAssistant class
+class MockHomeAssistant:
+    """Mock HomeAssistant class."""
+    pass
+
 sys.modules['homeassistant.core'] = homeassistant_core_mock
-sys.modules['homeassistant.core'].HomeAssistant = MagicMock
+sys.modules['homeassistant.core'].HomeAssistant = MockHomeAssistant
 sys.modules['homeassistant.helpers'] = homeassistant_helpers_mock
+# Create a mock class that supports subscriptable type hints
+class MockDataUpdateCoordinator:
+    """Mock DataUpdateCoordinator that supports type hints."""
+    def __init__(self, *args, **kwargs):
+        pass
+    def __class_getitem__(cls, item):
+        # Support DataUpdateCoordinator[dict[str, Any]] syntax
+        return cls
+
 sys.modules['homeassistant.helpers.update_coordinator'] = homeassistant_update_coordinator_mock
-sys.modules['homeassistant.helpers.update_coordinator'].DataUpdateCoordinator = MagicMock
+sys.modules['homeassistant.helpers.update_coordinator'].DataUpdateCoordinator = MockDataUpdateCoordinator
 sys.modules['homeassistant.helpers.update_coordinator'].UpdateFailed = Exception
 sys.modules['homeassistant.helpers.aiohttp_client'] = homeassistant_aiohttp_client_mock
 sys.modules['homeassistant.helpers.aiohttp_client'].async_get_clientsession = MagicMock
