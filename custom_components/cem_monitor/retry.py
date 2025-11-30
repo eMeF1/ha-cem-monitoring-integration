@@ -112,11 +112,15 @@ async def async_retry_with_backoff(
             
             # If this was the last attempt, raise the error
             if attempt >= max_retries:
+                try:
+                    err_str = str(err)
+                except Exception:
+                    err_str = repr(err)
                 _LOGGER.warning(
                     "%sMax retries (%d) exceeded, giving up: %s",
                     f"{context}: " if context else "",
                     max_retries + 1,
-                    err,
+                    err_str,
                 )
                 raise
             
@@ -128,13 +132,17 @@ async def async_retry_with_backoff(
                 jitter_amount = delay * 0.25 * random.random()
                 delay = delay + jitter_amount
             
+            try:
+                err_str = str(err)
+            except Exception:
+                err_str = repr(err)
             _LOGGER.debug(
                 "%sRetryable error on attempt %d/%d, retrying in %.2fs: %s",
                 f"{context}: " if context else "",
                 attempt + 1,
                 max_retries + 1,
                 delay,
-                err,
+                err_str,
             )
             
             await asyncio.sleep(delay)

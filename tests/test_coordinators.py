@@ -112,7 +112,16 @@ class TestUserInfoCoordinator:
 
     @pytest.mark.asyncio
     async def test_userinfo_network_error_retried(self, mock_hass, mock_client, mock_auth_coordinator):
-        """Test that network errors are retried by API client."""
+        """Test that network errors are retried by API client.
+        
+        Note: The API client's get_user_info method wraps the actual call with retry logic.
+        The retry logic will retry up to 3 times (max_retries=3), meaning:
+        - Attempt 0: initial call
+        - Attempt 1: first retry
+        - Attempt 2: second retry  
+        - Attempt 3: third retry (last attempt)
+        Total: 4 attempts. We need to succeed on the 4th attempt.
+        """
         from aiohttp.client_exceptions import ServerTimeoutError
 
         call_count = 0
@@ -120,12 +129,13 @@ class TestUserInfoCoordinator:
         async def get_user_info_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            # API client retries up to 3 times, so we need to succeed on the 4th call
-            # (initial attempt + 3 retries = 4 total attempts)
+            # Succeed on the 4th call (after 3 retries)
             if call_count < 4:
                 raise ServerTimeoutError()
             return {"firma": "Test Co", "fir_id": 123}
 
+        # The API client's get_user_info already has retry logic built in
+        # We just need to mock it to raise errors then succeed
         mock_client.get_user_info = AsyncMock(side_effect=get_user_info_side_effect)
 
         coordinator = CEMUserInfoCoordinator(mock_hass, mock_client, mock_auth_coordinator)
@@ -134,7 +144,6 @@ class TestUserInfoCoordinator:
 
         assert result["company"] == "Test Co"
         # Network errors are retried by API client (max 3 retries), so we should see 4 calls
-        # (1 initial + 3 retries)
         assert call_count == 4
 
 
