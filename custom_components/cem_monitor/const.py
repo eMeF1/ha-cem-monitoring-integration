@@ -23,6 +23,12 @@ CONF_VAR_ID = "var_id"
 CONF_VAR_IDS = "var_ids"
 CONF_VAR_IDS_CSV = "var_ids_csv"
 
+# Counter update interval configuration
+CONF_COUNTER_UPDATE_INTERVAL_MINUTES = "counter_update_interval_minutes"
+DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES = 30  # Default: 30 minutes
+MIN_COUNTER_UPDATE_INTERVAL_MINUTES = 1  # Minimum: 1 minute
+MAX_COUNTER_UPDATE_INTERVAL_MINUTES = 1440  # Maximum: 24 hours
+
 # Diagnostic attrs
 ATTR_TOKEN_EXPIRES_AT = "token_expires_at"
 ATTR_TOKEN_EXPIRES_IN = "token_expires_in_sec"
