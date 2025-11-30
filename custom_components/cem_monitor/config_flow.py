@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, Optional
 import voluptuous as vol
 from aiohttp import ClientResponseError
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD, CONF_VAR_IDS, CONF_VAR_IDS_CSV
-from .api import CEMClient
+from .api import CEMClient, AuthResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +26,27 @@ def _parse_csv_to_ints(csv: str) -> list[int]:
             continue
         out.append(int(s))
     return out
+
+
+def _ival(d: dict[str, Any], *keys: str) -> Optional[int]:
+    """Extract integer value from dict using multiple possible keys."""
+    for k in keys:
+        if k in d and d[k] is not None:
+            try:
+                return int(d[k])
+            except Exception:
+                pass
+    return None
+
+
+def _snonempty(*vals: Optional[str]) -> Optional[str]:
+    """Return first non-empty string from values."""
+    for v in vals:
+        if isinstance(v, str):
+            s = v.strip()
+            if s:
+                return s
+    return None
 
 
 class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -50,7 +73,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             session = async_get_clientsession(self.hass)
             client = CEMClient(session)
             try:
-                await client.authenticate(username, password)
+                auth_result = await client.authenticate(username, password)
             except ClientResponseError as err:
                 if err.status in (401, 403):
                     errors["base"] = "invalid_auth"
@@ -62,22 +85,18 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
                 return self.async_show_form(step_id="user", data_schema=self._schema(), errors=errors)
 
-            options: dict = {}
-            csv_val = user_input.get(CONF_VAR_IDS_CSV, "") or ""
-            try:
-                var_ids = _parse_csv_to_ints(csv_val)
-            except Exception:
-                errors["base"] = "invalid_var_ids"
-                return self.async_show_form(step_id="user", data_schema=self._schema(), errors=errors)
+            # Store credentials and auth result in flow data for next step
+            self.hass.data.setdefault(DOMAIN, {})
+            flow_data_key = f"{DOMAIN}_flow_{self.flow_id}"
+            self.hass.data[DOMAIN][flow_data_key] = {
+                CONF_USERNAME: username,
+                CONF_PASSWORD: password,
+                "auth_result": auth_result,
+                "client": client,
+            }
 
-            if var_ids:
-                options[CONF_VAR_IDS] = var_ids
-
-            return self.async_create_entry(
-                title=f"CEM Monitor ({username})" if username else "CEM Monitor",
-                data={CONF_USERNAME: username, CONF_PASSWORD: password},
-                options=options,
-            )
+            # Proceed to counter selection step
+            return await self.async_step_select_counters()
 
         return self.async_show_form(step_id="user", data_schema=self._schema(), errors=errors)
 
@@ -86,9 +105,284 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_USERNAME): str,
                 vol.Required(CONF_PASSWORD): str,
-                vol.Optional(CONF_VAR_IDS_CSV, description={"suggested_value": ""}): str,
             }
         )
+
+    async def async_step_select_counters(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+        """Step 2: Select counters from hierarchical tree."""
+        errors: dict[str, str] = {}
+        
+        # Retrieve stored credentials and auth
+        flow_data_key = f"{DOMAIN}_flow_{self.flow_id}"
+        flow_data = self.hass.data.get(DOMAIN, {}).get(flow_data_key)
+        
+        if not flow_data:
+            return self.async_abort(reason="no_flow_data")
+        
+        username = flow_data[CONF_USERNAME]
+        password = flow_data[CONF_PASSWORD]
+        auth_result: AuthResult = flow_data["auth_result"]
+        client: CEMClient = flow_data["client"]
+        
+        if user_input is not None:
+            # User has selected counters
+            selected_var_ids = user_input.get("selected_counters", [])
+            if not selected_var_ids:
+                errors["base"] = "no_counters_selected"
+            else:
+                # Convert string IDs to integers
+                try:
+                    var_ids = [int(vid) for vid in selected_var_ids]
+                except (ValueError, TypeError):
+                    errors["base"] = "invalid_counter_selection"
+                
+                if not errors:
+                    # Clean up flow data
+                    self.hass.data[DOMAIN].pop(flow_data_key, None)
+                    
+                    # Create config entry
+                    options: dict = {}
+                    if var_ids:
+                        options[CONF_VAR_IDS] = var_ids
+                    
+                    return self.async_create_entry(
+                        title=f"CEM Monitor ({username})" if username else "CEM Monitor",
+                        data={CONF_USERNAME: username, CONF_PASSWORD: password},
+                        options=options,
+                    )
+        
+        # Fetch and build tree structure
+        try:
+            tree_data = await self._fetch_objects_tree(client, auth_result)
+        except Exception as err:
+            _LOGGER.exception("Error fetching objects tree: %s", err)
+            errors["base"] = "fetch_failed"
+            return self.async_show_form(
+                step_id="select_counters",
+                data_schema=vol.Schema({}),
+                errors=errors,
+            )
+        
+        # Build selection options with hierarchical display
+        counter_options: dict[str, str] = {}
+        for mis_id, obj_data in tree_data.items():
+            mis_name = obj_data.get("mis_name") or f"Object {mis_id}"
+            obj_label = f"{mis_name} ({mis_id})"
+            
+            for me_id, meter_data in obj_data.get("meters", {}).items():
+                me_serial = meter_data.get("me_serial") or f"me{me_id}"
+                lt_key = meter_data.get("lt_key") or ""
+                jed_nazev = meter_data.get("jed_nazev") or ""
+                meter_label = f"  └─ {me_serial} - {lt_key} - {jed_nazev} ({me_id})"
+                
+                for var_id, counter_data in meter_data.get("counters", {}).items():
+                    counter_name = counter_data.get("name") or f"Counter {var_id}"
+                    counter_label = f"    └─ {counter_name} ({var_id})"
+                    
+                    # Full path for display - using newlines for better visual separation
+                    # Note: Home Assistant multi-select will display as flat list, but formatting helps readability
+                    full_label = f"{obj_label}\n{meter_label}\n{counter_label}"
+                    counter_options[str(var_id)] = full_label
+        
+        if not counter_options:
+            errors["base"] = "no_counters_available"
+            return self.async_show_form(
+                step_id="select_counters",
+                data_schema=vol.Schema({}),
+                errors=errors,
+            )
+        
+        schema = vol.Schema(
+            {
+                vol.Required("selected_counters", default=[]): vol.All(
+                    cv.multi_select(counter_options),
+                    vol.Length(min=1, msg="Please select at least one counter"),
+                ),
+            }
+        )
+        
+        return self.async_show_form(
+            step_id="select_counters",
+            data_schema=schema,
+            errors=errors,
+        )
+
+    async def _fetch_objects_tree(
+        self, client: CEMClient, auth_result: AuthResult
+    ) -> dict[int, dict[str, Any]]:
+        """Fetch and build hierarchical tree: Objects → Meters → Counters."""
+        token = auth_result.access_token
+        cookie = auth_result.cookie_value
+        
+        # Fetch pot_types once (id=222)
+        pot_by_id: dict[int, dict[str, Any]] = {}
+        try:
+            pot_payload = await client.get_pot_types(token, cookie)
+            pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
+            if isinstance(pot_list, list):
+                for p in pot_list:
+                    pid = _ival(p, "pot_id")
+                    if pid is not None:
+                        pot_by_id[pid] = p
+        except Exception as err:
+            _LOGGER.warning("Failed to fetch pot_types: %s", err)
+        
+        # Fetch objects (id=23)
+        objects_raw = await client.get_objects(token, cookie)
+        
+        # Store raw objects for parent resolution
+        raw_by_mis: dict[int, dict[str, Any]] = {}
+        mis_name_by_id: dict[int, Optional[str]] = {}
+        
+        # Build objects map and name mapping
+        objects_map: dict[int, dict[str, Any]] = {}
+        for obj in objects_raw:
+            mis_id = _ival(obj, "mis_id", "misid", "misId", "id")
+            if mis_id is None:
+                continue
+            
+            raw_by_mis[mis_id] = obj
+            mis_name = _snonempty(
+                obj.get("mis_nazev"),
+                obj.get("mis_name"),
+                obj.get("name"),
+                obj.get("nazev"),
+                obj.get("název"),
+                obj.get("caption"),
+                obj.get("description"),
+            )
+            mis_name_by_id[mis_id] = mis_name
+            
+            objects_map[mis_id] = {
+                "mis_id": mis_id,
+                "mis_name": mis_name,
+                "meters": {},
+            }
+        
+        # Resolve object names by climbing parent hierarchy
+        for mis_id, obj_data in objects_map.items():
+            resolved_name, _ = self._resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
+            if resolved_name:
+                obj_data["mis_name"] = resolved_name
+        
+        # Fetch all meters (id=108)
+        meters_raw = await client.get_meters(token, cookie)
+        
+        # Group meters by mis_id
+        meters_by_object: dict[int, list[dict[str, Any]]] = {}
+        for meter in meters_raw:
+            mis_id = _ival(meter, "mis_id", "misid", "misId", "object_id", "obj_id")
+            if mis_id is None:
+                continue
+            if mis_id not in meters_by_object:
+                meters_by_object[mis_id] = []
+            meters_by_object[mis_id].append(meter)
+        
+        # For each object, fetch meters and their counters
+        for mis_id, obj_data in objects_map.items():
+            meters_list = meters_by_object.get(mis_id, [])
+            
+            for meter in meters_list:
+                me_id = _ival(meter, "me_id", "meid", "meId", "id")
+                if me_id is None:
+                    continue
+                
+                me_serial = _snonempty(
+                    meter.get("me_serial"),
+                    meter.get("serial"),
+                )
+                me_name = _snonempty(
+                    meter.get("me_name"),
+                    meter.get("name"),
+                    meter.get("nazev"),
+                    meter.get("název"),
+                )
+                
+                # Fetch counters for this meter (id=107)
+                try:
+                    counters_raw = await client.get_counters_by_meter(me_id, token, cookie)
+                except Exception as err:
+                    _LOGGER.warning("Failed to fetch counters for meter %s: %s", me_id, err)
+                    counters_raw = []
+                
+                # Process counters
+                meter_counters: dict[int, dict[str, Any]] = {}
+                first_lt_key = None
+                first_jed_nazev = None
+                first_jed_zkr = None
+                
+                for counter in counters_raw:
+                    var_id = _ival(counter, "var_id", "varId", "varid", "id")
+                    if var_id is None:
+                        continue
+                    
+                    counter_name = _snonempty(
+                        counter.get("poc_desc"),
+                        counter.get("name"),
+                        counter.get("nazev"),
+                        counter.get("název"),
+                        counter.get("caption"),
+                        counter.get("popis"),
+                        counter.get("description"),
+                    )
+                    
+                    # Get pot_info for this counter
+                    pot_id = _ival(counter, "pot_id")
+                    pot_info = pot_by_id.get(pot_id) if pot_id is not None else None
+                    
+                    # Use first counter's pot_info for meter display
+                    if pot_info and first_lt_key is None:
+                        first_lt_key = pot_info.get("lt_key")
+                        first_jed_nazev = pot_info.get("jed_nazev")
+                        first_jed_zkr = pot_info.get("jed_zkr")
+                    
+                    meter_counters[var_id] = {
+                        "var_id": var_id,
+                        "name": counter_name,
+                        "pot_id": pot_id,
+                        "pot_info": pot_info,
+                    }
+                
+                # Only store meters that have at least one counter
+                if meter_counters:
+                    obj_data["meters"][me_id] = {
+                        "me_id": me_id,
+                        "me_serial": me_serial or f"me{me_id}",
+                        "me_name": me_name,
+                        "lt_key": first_lt_key or "",
+                        "jed_nazev": first_jed_nazev or "",
+                        "jed_zkr": first_jed_zkr or "",
+                        "counters": meter_counters,
+                    }
+        
+        return objects_map
+
+    def _resolve_object_name(
+        self,
+        mis_id: Optional[int],
+        raw_by_mis: dict[int, dict[str, Any]],
+        mis_name_by_id: dict[int, Optional[str]],
+    ) -> tuple[Optional[str], Optional[int]]:
+        """Return (resolved_name, source_mis_id). If mis has no name, climb via mis_idp to find a named ancestor."""
+        if mis_id is None:
+            return None, None
+
+        visited: set[int] = set()
+        cur = int(mis_id)
+
+        while cur and cur not in visited:
+            visited.add(cur)
+            name = mis_name_by_id.get(cur)
+            if _snonempty(name):
+                return name, cur
+            raw = raw_by_mis.get(cur) or {}
+            parent = raw.get("mis_idp")
+            try:
+                cur = int(parent) if parent is not None else None
+            except Exception:
+                cur = None
+
+        return None, None
 
     @staticmethod
     @callback

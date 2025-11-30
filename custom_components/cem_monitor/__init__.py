@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant, callback, ServiceCall
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DOMAIN
+from .const import DOMAIN, CONF_VAR_IDS
 from .api import CEMClient
 from .coordinator import CEMAuthCoordinator
 from .userinfo_coordinator import CEMUserInfoCoordinator
@@ -114,6 +114,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data.setdefault(DOMAIN, {})
     bag: Dict[str, Any] = hass.data[DOMAIN].setdefault(entry.entry_id, {})
     bag["client"] = client
+
+    # Get allowed var_ids from config entry options (user selection)
+    allowed_var_ids: Optional[List[int]] = entry.options.get(CONF_VAR_IDS)
+    allowed_var_ids_set: Optional[set[int]] = None
+    if allowed_var_ids:
+        allowed_var_ids_set = set(allowed_var_ids)
+        _LOGGER.debug("CEM: Filtering counters to var_ids=%s", allowed_var_ids)
+    else:
+        _LOGGER.debug("CEM: No var_ids filter set, exposing all eligible counters")
 
     # 1) Auth (id=4)
     auth = CEMAuthCoordinator(hass, entry)
@@ -334,6 +343,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             #   - type 0, 1, 3 as numeric sensors
             #   - skip type 2 (door, contact, secure, etc.)
             if pot_type == 2:
+                continue
+
+            # Filter by user selection if CONF_VAR_IDS is set
+            if allowed_var_ids_set is not None and vid not in allowed_var_ids_set:
                 continue
 
             meter_counters_meta[vid] = {

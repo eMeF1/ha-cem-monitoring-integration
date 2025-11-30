@@ -9,13 +9,25 @@
           "username": "Username",
           "password": "Password"
         }
+      },
+      "select_counters": {
+        "title": "Select Counters",
+        "description": "Select the counters you want to monitor. The tree shows Objects → Meters → Counters.",
+        "data": {
+          "selected_counters": "Counters"
+        }
       }
     },
     "error": {
       "invalid_auth": "Invalid username or password",
       "cannot_connect": "Unable to connect to CEM API. Please check your internet connection.",
       "unknown": "Unexpected error occurred. Please try again.",
-      "already_configured": "This account is already configured. Please remove the existing configuration first or use a different account."
+      "already_configured": "This account is already configured. Please remove the existing configuration first or use a different account.",
+      "no_flow_data": "Configuration flow data is missing. Please start over.",
+      "fetch_failed": "Failed to fetch objects, meters, or counters from CEM API. Please try again.",
+      "no_counters_available": "No counters are available for selection. Please check your CEM account.",
+      "no_counters_selected": "Please select at least one counter to monitor.",
+      "invalid_counter_selection": "Invalid counter selection. Please try again."
     }
   }
 }
