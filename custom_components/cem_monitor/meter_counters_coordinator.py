@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import CEMClient
 from .coordinator import CEMAuthCoordinator
 from .discovery import select_water_var_ids
+from .retry import is_401_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,7 +60,23 @@ class CEMMeterCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             raw_items = await self._client.get_counters_by_meter(self._me_id, token, cookie)
         except Exception as err:
-            raise UpdateFailed(f"id=107 me={self._me_id} failed: {err}") from err
+            # Handle 401 by refreshing token and retrying once
+            if is_401_error(err):
+                _LOGGER.debug("CEM counters(me=%s): 401 error, refreshing token and retrying", self._me_id)
+                await self._auth.async_request_refresh()
+                token = self._auth.token
+                if not token:
+                    raise UpdateFailed(f"No token available after refresh for counters(me={self._me_id})") from err
+                cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
+                try:
+                    raw_items = await self._client.get_counters_by_meter(self._me_id, token, cookie)
+                except Exception as retry_err:
+                    if is_401_error(retry_err):
+                        raise UpdateFailed(f"Counters(me={self._me_id}) failed: authentication failed after token refresh") from retry_err
+                    raise UpdateFailed(f"Counters(me={self._me_id}) failed after token refresh: {retry_err}") from retry_err
+            else:
+                # Other errors (network errors are already retried by API client)
+                raise UpdateFailed(f"id=107 me={self._me_id} failed: {err}") from err
 
         water_var_ids = select_water_var_ids(raw_items)
 
