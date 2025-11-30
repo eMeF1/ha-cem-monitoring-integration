@@ -1,33 +1,17 @@
 """Tests for coordinators with mocked API calls."""
-import sys
-from pathlib import Path
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone, timedelta
 from aiohttp import ClientResponseError
 
-# Add custom_components to path for testing
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Mock Home Assistant dependencies before importing coordinators
-import sys
-from unittest.mock import MagicMock
-
-# Mock homeassistant module
-homeassistant_mock = MagicMock()
-homeassistant_mock.helpers.update_coordinator.UpdateFailed = Exception
-sys.modules['homeassistant'] = homeassistant_mock
-sys.modules['homeassistant.core'] = MagicMock()
-sys.modules['homeassistant.helpers'] = MagicMock()
-sys.modules['homeassistant.helpers.update_coordinator'] = MagicMock()
-sys.modules['homeassistant.helpers.update_coordinator'].UpdateFailed = Exception
-
+# conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.coordinator import CEMAuthCoordinator
 from custom_components.cem_monitor.userinfo_coordinator import CEMUserInfoCoordinator
 from custom_components.cem_monitor.water_coordinator import CEMWaterCoordinator
 from custom_components.cem_monitor.api import CEMClient, AuthResult
 
-UpdateFailed = Exception  # Use standard Exception for testing
+# Use standard Exception for UpdateFailed in tests
+UpdateFailed = Exception
 
 
 @pytest.fixture

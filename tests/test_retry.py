@@ -4,12 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from aiohttp import ClientResponseError, ClientError, ClientConnectorError, ServerTimeoutError
 
-import sys
-from pathlib import Path
-
-# Add custom_components to path for testing
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+# conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.retry import (
     is_retryable_error,
     is_401_error,

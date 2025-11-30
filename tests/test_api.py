@@ -1,14 +1,10 @@
 """Tests for API client with mocked HTTP responses."""
-import sys
-from pathlib import Path
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from aiohttp import ClientResponseError, ClientConnectorError, ClientSession
 from aiohttp.client_exceptions import ServerTimeoutError
 
-# Add custom_components to path for testing
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+# conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.api import CEMClient, AuthResult
 
 
