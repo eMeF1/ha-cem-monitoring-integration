@@ -408,10 +408,13 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            try:
-                var_ids = _parse_csv_to_ints(user_input.get(CONF_VAR_IDS_CSV, ""))
-            except Exception:
-                errors["base"] = "invalid_var_ids"
+            var_ids = []
+            var_ids_csv = user_input.get(CONF_VAR_IDS_CSV, "").strip()
+            if var_ids_csv:
+                try:
+                    var_ids = _parse_csv_to_ints(var_ids_csv)
+                except Exception:
+                    errors[CONF_VAR_IDS_CSV] = "invalid_var_ids"
             
             # Validate counter update interval
             interval = user_input.get(CONF_COUNTER_UPDATE_INTERVAL_MINUTES)
@@ -424,7 +427,10 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
                     errors[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = "invalid_interval"
             
             if not errors:
-                options_data = {CONF_VAR_IDS: var_ids}
+                options_data = {}
+                # Only store var_ids if provided (empty list means show all)
+                if var_ids:
+                    options_data[CONF_VAR_IDS] = var_ids
                 # Always store the interval (default is set in schema, so it's always present)
                 interval_value = int(interval) if interval is not None else DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
                 options_data[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = interval_value
@@ -438,7 +444,7 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
         
         schema = vol.Schema(
             {
-                vol.Required(CONF_VAR_IDS_CSV, default=csv_default): str,
+                vol.Optional(CONF_VAR_IDS_CSV, default=csv_default): str,
                 vol.Required(
                     CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
                     default=existing_interval,
