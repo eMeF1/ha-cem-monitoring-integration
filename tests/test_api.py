@@ -70,12 +70,14 @@ class TestAuthenticate:
     @pytest.mark.asyncio
     async def test_authenticate_no_retry_on_401(self, client, mock_session):
         """Test that 401 errors are not retried."""
+        from aiohttp import RequestInfo
         call_count = 0
 
         async def post_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            raise ClientResponseError(None, None, status=401)
+            request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+            raise ClientResponseError(request_info, None, status=401)
 
         mock_session.post.return_value.__aenter__.side_effect = post_side_effect
 
@@ -151,13 +153,14 @@ class TestGetObjects:
     @pytest.mark.asyncio
     async def test_get_objects_retry_on_connection_error(self, client, mock_session):
         """Test that connection errors are retried."""
+        import os
         call_count = 0
 
         async def get_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count < 2:
-                raise ClientConnectorError(None, None)
+                raise ClientConnectorError(None, OSError("Connection failed"))
             mock_response = AsyncMock()
             mock_response.status = 200
             mock_response.text = AsyncMock(return_value='[]')
@@ -197,12 +200,14 @@ class TestGetWaterConsumption:
     @pytest.mark.asyncio
     async def test_get_water_consumption_no_retry_on_404(self, client, mock_session):
         """Test that 404 errors are not retried."""
+        from aiohttp import RequestInfo
         call_count = 0
 
         async def get_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            raise ClientResponseError(None, None, status=404)
+            request_info = RequestInfo(url="http://test.com", method="GET", headers={}, real_url="http://test.com")
+            raise ClientResponseError(request_info, None, status=404)
 
         mock_session.get.return_value.__aenter__.side_effect = get_side_effect
 

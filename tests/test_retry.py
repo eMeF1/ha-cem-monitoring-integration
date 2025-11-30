@@ -18,7 +18,10 @@ class TestErrorClassification:
 
     def test_is_retryable_network_errors(self):
         """Test that network errors are retryable."""
-        assert is_retryable_error(ClientConnectorError(None, None)) is True
+        # Create proper ClientConnectorError with OSError
+        import os
+        os_error = OSError("Connection failed")
+        assert is_retryable_error(ClientConnectorError(None, os_error)) is True
         assert is_retryable_error(ServerTimeoutError()) is True
         assert is_retryable_error(asyncio.TimeoutError()) is True
 
@@ -76,13 +79,14 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_success_after_retries(self):
         """Test that retry eventually succeeds."""
+        import os
         call_count = 0
 
         async def func():
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise ClientConnectorError(None, None)
+                raise ClientConnectorError(None, OSError("Connection failed"))
             return "success"
 
         result = await async_retry_with_backoff(func, max_retries=3, initial_delay=0.1)
@@ -92,12 +96,13 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_max_retries_exceeded(self):
         """Test that max retries are respected."""
+        import os
         call_count = 0
 
         async def func():
             nonlocal call_count
             call_count += 1
-            raise ClientConnectorError(None, None)
+            raise ClientConnectorError(None, OSError("Connection failed"))
 
         with pytest.raises(ClientConnectorError):
             await async_retry_with_backoff(func, max_retries=2, initial_delay=0.1)
@@ -107,12 +112,14 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_no_retry_on_non_retryable_error(self):
         """Test that non-retryable errors fail immediately."""
+        from aiohttp import RequestInfo
         call_count = 0
 
         async def func():
             nonlocal call_count
             call_count += 1
-            raise ClientResponseError(None, None, status=404)
+            request_info = RequestInfo(url="http://test.com", method="GET", headers={}, real_url="http://test.com")
+            raise ClientResponseError(request_info, None, status=404)
 
         with pytest.raises(ClientResponseError):
             await async_retry_with_backoff(func, max_retries=3, initial_delay=0.1)
@@ -122,6 +129,7 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_exponential_backoff_timing(self):
         """Test that backoff delays increase exponentially."""
+        import os
         delays = []
         call_count = 0
 
@@ -129,7 +137,7 @@ class TestRetryWithBackoff:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise ClientConnectorError(None, None)
+                raise ClientConnectorError(None, OSError("Connection failed"))
             return "success"
 
         with patch("asyncio.sleep") as mock_sleep:
@@ -151,6 +159,7 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_max_delay_respected(self):
         """Test that max delay is not exceeded."""
+        import os
         delays = []
         call_count = 0
 
@@ -158,7 +167,7 @@ class TestRetryWithBackoff:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise ClientConnectorError(None, None)
+                raise ClientConnectorError(None, OSError("Connection failed"))
             return "success"
 
         with patch("asyncio.sleep") as mock_sleep:
@@ -182,6 +191,7 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_jitter_added(self):
         """Test that jitter adds randomness to delays."""
+        import os
         delays = []
         call_count = 0
 
@@ -189,7 +199,7 @@ class TestRetryWithBackoff:
             nonlocal call_count
             call_count += 1
             if call_count < 2:
-                raise ClientConnectorError(None, None)
+                raise ClientConnectorError(None, OSError("Connection failed"))
             return "success"
 
         with patch("asyncio.sleep") as mock_sleep:
@@ -209,13 +219,14 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_context_logging(self):
         """Test that context is included in retry logging."""
+        import os
         call_count = 0
 
         async def func():
             nonlocal call_count
             call_count += 1
             if call_count < 2:
-                raise ClientConnectorError(None, None)
+                raise ClientConnectorError(None, OSError("Connection failed"))
             return "success"
 
         with patch("custom_components.cem_monitor.retry._LOGGER") as mock_logger:

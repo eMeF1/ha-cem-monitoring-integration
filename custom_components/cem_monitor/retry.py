@@ -26,7 +26,6 @@ def is_retryable_error(error: Exception) -> bool:
     Retryable errors:
     - Network errors (ClientConnectorError, ServerTimeoutError, asyncio.TimeoutError)
     - HTTP 5xx server errors
-    - ClientError (general aiohttp client errors)
     
     Non-retryable errors:
     - HTTP 401 (unauthorized) - should trigger token refresh instead
@@ -35,26 +34,23 @@ def is_retryable_error(error: Exception) -> bool:
     - Other 4xx client errors
     - ValueError and other non-network errors
     """
-    # Network and connection errors
-    if isinstance(error, (ClientConnectorError, ServerTimeoutError, asyncio.TimeoutError)):
-        return True
-    
-    # General aiohttp client errors (network issues)
-    if isinstance(error, ClientError):
-        return True
-    
-    # HTTP response errors
+    # HTTP response errors - check these FIRST before general ClientError
     if isinstance(error, ClientResponseError):
         status = error.status
         # 5xx server errors are retryable
         if 500 <= status < 600:
             return True
-        # 401 is not retryable (should trigger token refresh)
-        if status == 401:
-            return False
-        # 404, 400, and other 4xx are not retryable
+        # 401, 404, 400, and other 4xx are not retryable
         if 400 <= status < 500:
             return False
+    
+    # Network and connection errors
+    if isinstance(error, (ClientConnectorError, ServerTimeoutError, asyncio.TimeoutError)):
+        return True
+    
+    # General aiohttp client errors (network issues) - but NOT ClientResponseError (already handled above)
+    if isinstance(error, ClientError) and not isinstance(error, ClientResponseError):
+        return True
     
     # Non-network errors are not retryable
     return False
