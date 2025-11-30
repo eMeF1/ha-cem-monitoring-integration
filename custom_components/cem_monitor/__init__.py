@@ -390,6 +390,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         }
 
     # Periodic refresh for all water coordinators (id=8)
+    # Clean up existing timer if it exists (in case of reload/options change)
+    existing_unsub = bag.get("water_refresh_unsub")
+    if callable(existing_unsub):
+        existing_unsub()
+        _LOGGER.debug("CEM: Cleaned up existing water refresh timer")
+    
     # Get configured update interval or use default (30 minutes)
     update_interval_minutes = entry.options.get(
         CONF_COUNTER_UPDATE_INTERVAL_MINUTES, DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
