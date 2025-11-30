@@ -16,18 +16,6 @@
         "data": {
           "selected_counters": "Counters"
         }
-      },
-      "options": {
-        "step": {
-          "init": {
-            "title": "CEM Monitor Options",
-            "description": "Configure counter update interval and counter selection.",
-            "data": {
-              "var_ids_csv": "Counter IDs (comma-separated)",
-              "counter_update_interval_minutes": "Counter Update Interval (minutes)"
-            }
-          }
-        }
       }
     },
     "error": {
@@ -42,6 +30,18 @@
       "invalid_counter_selection": "Invalid counter selection. Please try again.",
       "invalid_interval": "Invalid update interval. Please enter a number.",
       "interval_range": "Update interval must be between 1 and 1440 minutes (24 hours)."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "CEM Monitor Options",
+        "description": "Configure counter update interval and counter selection.",
+        "data": {
+          "var_ids_csv": "Counter IDs (comma-separated)",
+          "counter_update_interval_minutes": "Counter Update Interval (minutes)"
+        }
+      }
     }
   }
 }
