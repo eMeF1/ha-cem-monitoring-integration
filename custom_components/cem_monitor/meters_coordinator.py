@@ -9,6 +9,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import CEMClient
 from .coordinator import CEMAuthCoordinator
+from .retry import is_401_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,7 +35,23 @@ class CEMMetersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             items = await self._client.get_meters(token, cookie)  # fetch all; we map locally
         except Exception as err:
-            raise UpdateFailed(f"id=108 failed: {err}") from err
+            # Handle 401 by refreshing token and retrying once
+            if is_401_error(err):
+                _LOGGER.debug("CEM meters: 401 error, refreshing token and retrying")
+                await self._auth.async_request_refresh()
+                token = self._auth.token
+                if not token:
+                    raise UpdateFailed("No token available after refresh for meters") from err
+                cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
+                try:
+                    items = await self._client.get_meters(token, cookie)
+                except Exception as retry_err:
+                    if is_401_error(retry_err):
+                        raise UpdateFailed("Meters failed: authentication failed after token refresh") from retry_err
+                    raise UpdateFailed(f"Meters failed after token refresh: {retry_err}") from retry_err
+            else:
+                # Other errors (network errors are already retried by API client)
+                raise UpdateFailed(f"id=108 failed: {err}") from err
 
         def _ival(d: Dict[str, Any], keys: List[str]) -> Optional[int]:
             for k in keys:

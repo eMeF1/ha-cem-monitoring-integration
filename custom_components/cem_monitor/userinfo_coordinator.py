@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .coordinator import CEMAuthCoordinator
 from .api import CEMClient
 from .const import DOMAIN
+from .retry import is_401_error
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,13 +45,22 @@ class CEMUserInfoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             data = await self._client.get_user_info(token, cookie)
         except Exception as err:
-            status = getattr(err, "status", None)
-            if status == 401 or "401" in str(err):
+            # Handle 401 by refreshing token and retrying once
+            if is_401_error(err):
+                _LOGGER.debug("CEM userinfo: 401 error, refreshing token and retrying")
                 await self._auth.async_request_refresh()
                 token = self._auth.token
+                if not token:
+                    raise UpdateFailed("No token available after refresh for userinfo") from err
                 cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
-                data = await self._client.get_user_info(token, cookie)
+                try:
+                    data = await self._client.get_user_info(token, cookie)
+                except Exception as retry_err:
+                    if is_401_error(retry_err):
+                        raise UpdateFailed("UserInfo failed: authentication failed after token refresh") from retry_err
+                    raise UpdateFailed(f"UserInfo failed after token refresh: {retry_err}") from retry_err
             else:
+                # Other errors (network errors are already retried by API client)
                 raise UpdateFailed(f"UserInfo failed: {err}") from err
 
         display_name = (data.get("show_name") or "").strip() or None
