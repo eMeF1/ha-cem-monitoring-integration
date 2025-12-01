@@ -29,5 +29,26 @@
       "no_counters_selected": "Please select at least one counter to monitor.",
       "invalid_counter_selection": "Invalid counter selection. Please try again."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "CEM Monitor Options",
+        "description": "Select the counters you want to monitor and configure the update interval. The tree shows Objects → Meters → Counters.",
+        "data": {
+          "selected_counters": "Counters",
+          "counter_update_interval_minutes": "Counter Update Interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "missing_credentials": "Credentials are missing from the configuration entry.",
+      "invalid_auth": "Invalid username or password. Please reconfigure the integration.",
+      "cannot_connect": "Unable to connect to CEM API. Please check your internet connection.",
+      "unknown": "Unexpected error occurred. Please try again.",
+      "fetch_failed": "Failed to fetch objects, meters, or counters from CEM API. Please try again.",
+      "no_counters_available": "No counters are available for selection. Please check your CEM account.",
+      "invalid_counter_selection": "Invalid counter selection. Please try again."
+    }
   }
 }
