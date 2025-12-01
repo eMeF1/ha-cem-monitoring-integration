@@ -176,12 +176,12 @@ class TestGetObjects:
         assert call_count == 2
 
 
-class TestGetWaterConsumption:
-    """Test get_water_consumption method."""
+class TestGetCounterReading:
+    """Test get_counter_reading method."""
 
     @pytest.mark.asyncio
-    async def test_get_water_consumption_success(self, client, mock_session):
-        """Test successful get_water_consumption."""
+    async def test_get_counter_reading_success(self, client, mock_session):
+        """Test successful get_counter_reading."""
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.text = AsyncMock(return_value='[{"value": 123.45, "timestamp": 1234567890}]')
@@ -192,13 +192,13 @@ class TestGetWaterConsumption:
 
         mock_session.get.return_value.__aenter__.return_value = mock_response
 
-        result = await client.get_water_consumption(123, "token", "cookie")
+        result = await client.get_counter_reading(123, "token", "cookie")
 
         assert result["value"] == 123.45
         assert result["timestamp_ms"] == 1234567890
 
     @pytest.mark.asyncio
-    async def test_get_water_consumption_no_retry_on_404(self, client, mock_session):
+    async def test_get_counter_reading_no_retry_on_404(self, client, mock_session):
         """Test that 404 errors are not retried."""
         from aiohttp import RequestInfo
         call_count = 0
@@ -212,7 +212,7 @@ class TestGetWaterConsumption:
         mock_session.get.return_value.__aenter__.side_effect = get_side_effect
 
         with pytest.raises(ClientResponseError):
-            await client.get_water_consumption(123, "token", "cookie")
+            await client.get_counter_reading(123, "token", "cookie")
 
         assert call_count == 1  # No retries
 

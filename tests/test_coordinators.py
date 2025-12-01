@@ -7,7 +7,7 @@ from aiohttp import ClientResponseError
 # conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.coordinator import CEMAuthCoordinator
 from custom_components.cem_monitor.userinfo_coordinator import CEMUserInfoCoordinator
-from custom_components.cem_monitor.water_coordinator import CEMWaterCoordinator
+from custom_components.cem_monitor.counter_reading_coordinator import CEMCounterReadingCoordinator
 from custom_components.cem_monitor.api import CEMClient, AuthResult
 
 # Use standard Exception for UpdateFailed in tests
@@ -146,15 +146,15 @@ class TestUserInfoCoordinator:
         assert call_count == 1  # Coordinator catches the error after API client retries are exhausted
 
 
-class TestWaterCoordinator:
-    """Test CEMWaterCoordinator."""
+class TestCounterReadingCoordinator:
+    """Test CEMCounterReadingCoordinator."""
 
     @pytest.mark.asyncio
-    async def test_water_consumption_success(self, mock_hass, mock_client, mock_auth_coordinator):
-        """Test successful water consumption fetch."""
-        coordinator = CEMWaterCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
+    async def test_counter_reading_success(self, mock_hass, mock_client, mock_auth_coordinator):
+        """Test successful counter reading fetch."""
+        coordinator = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
 
-        mock_client.get_water_consumption = AsyncMock(
+        mock_client.get_counter_reading = AsyncMock(
             return_value={"value": 123.45, "timestamp_ms": 1234567890}
         )
 
@@ -164,22 +164,22 @@ class TestWaterCoordinator:
         assert result["timestamp_ms"] == 1234567890
 
     @pytest.mark.asyncio
-    async def test_water_consumption_401_refresh_token(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_counter_reading_401_refresh_token(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that 401 triggers token refresh and retry."""
         call_count = 0
 
-        async def get_water_side_effect(*args, **kwargs):
+        async def get_counter_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise ClientResponseError(None, None, status=401)
             return {"value": 123.45, "timestamp_ms": 1234567890}
 
-        mock_client.get_water_consumption = AsyncMock(side_effect=get_water_side_effect)
+        mock_client.get_counter_reading = AsyncMock(side_effect=get_counter_side_effect)
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
 
-        coordinator = CEMWaterCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
+        coordinator = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
 
         result = await coordinator._async_update_data()
 
@@ -188,20 +188,20 @@ class TestWaterCoordinator:
         mock_auth_coordinator.async_request_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_water_consumption_no_token_after_refresh(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_counter_reading_no_token_after_refresh(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that missing token after refresh raises UpdateFailed."""
         from aiohttp import RequestInfo
         request_info = RequestInfo(url="http://test.com", method="GET", headers={}, real_url="http://test.com")
-        mock_client.get_water_consumption = AsyncMock(
+        mock_client.get_counter_reading = AsyncMock(
             side_effect=ClientResponseError(request_info, None, status=401)
         )
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = None  # Token refresh failed
 
-        coordinator = CEMWaterCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
+        coordinator = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
 
         with pytest.raises(UpdateFailed) as exc_info:
             await coordinator._async_update_data()
 
-        assert "no token available after refresh" in str(exc_info.value).lower() or "no token available for water" in str(exc_info.value).lower()
+        assert "no token available after refresh" in str(exc_info.value).lower() or "no token available for counter" in str(exc_info.value).lower()
 
