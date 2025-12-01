@@ -19,15 +19,15 @@ This project is community‑maintained and **not affiliated with CEM or Softlink
 - Discover objects (`mis_id`)
 - Discover meters (`me_id`, including serial numbers)
 - Discover counters (`var_id`) per meter
-- **Hierarchical counter selection** during setup — choose which counters to expose
-- **Configurable update intervals** — control how often counter readings are refreshed (default: 30 minutes, range: 1–1440 minutes)
+- Hierarchical counter selection during setup — choose which counters to expose
+- Configurable update intervals — control how often counter readings are refreshed (default: 30 minutes, range: 1–1440 minutes)
 - Expose eligible counters as sensors with:
   - Meter ID (`me_id`)
   - Counter ID (`var_id`)
   - Meter serial (when available)
   - Unit metadata from CEM (e.g. `m³`, `kWh`, …)
 - Automatic device structure for account and objects
-- **Debug service** (`get_raw`) for inspecting raw CEM API responses
+- Debug service (`get_raw`) for inspecting raw CEM API responses
 
 ---
 
@@ -172,7 +172,7 @@ For more details, see the public API site:
 1. Go to **Settings → Devices & Services → Add Integration**.
 2. Search for **CEM Monitoring Integration**.
 3. Enter your CEM credentials (username and password).
-4. After authentication, you'll be presented with a **hierarchical counter selection** screen showing:
+4. After authentication, you'll be presented with a hierarchical counter selection screen showing:
    - Objects (places) with their `mis_id`
    - Meters within each object with serial numbers and counter types
    - Individual counters (`var_id`) with their names
@@ -189,8 +189,8 @@ To change your counter selection or update interval after initial setup:
 2. Find your **CEM Monitoring Integration** entry.
 3. Click **Configure** (or the three-dot menu → **Configure**).
 4. You can:
-   - **Select/deselect counters** — modify which counters are exposed as sensors
-   - **Adjust update interval** — set how often counter readings are refreshed
+   - Select/deselect counters — modify which counters are exposed as sensors
+   - Adjust update interval — set how often counter readings are refreshed
      - Default: 30 minutes
      - Range: 1–1440 minutes (1 minute to 24 hours)
      - Lower intervals mean more frequent updates but higher API usage
