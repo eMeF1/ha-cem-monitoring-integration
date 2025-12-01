@@ -135,11 +135,12 @@ class _DeviceInfoHelper:
 
     @staticmethod
     def build_account(entry: ConfigEntry, company_id: Optional[int], label: Optional[str]) -> DeviceInfo:
+        model = f"CEM Account {label}" if label and label.strip() else "CEM Account"
         return DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id, "account")},
             name=_DeviceInfoHelper.desired_account_name(label),
-            manufacturer="CEM",
-            model="Unofficial API",
+            manufacturer="Softlink",
+            model=model,
         )
 
     @staticmethod
@@ -150,11 +151,17 @@ class _DeviceInfoHelper:
         mis_name: Optional[str],
     ) -> DeviceInfo:
         ident = (DOMAIN, entry.entry_id, f"mis:{mis_id}") if mis_id is not None else (DOMAIN, entry.entry_id, "mis:unknown")
+        if isinstance(mis_name, str) and mis_name.strip():
+            model = f"CEM Object {mis_name.strip()}"
+        elif mis_id is not None:
+            model = f"CEM Object {mis_id}"
+        else:
+            model = "CEM Object"
         return DeviceInfo(
             identifiers={ident},
             name=_DeviceInfoHelper.desired_object_name(mis_name, mis_id),
-            manufacturer="CEM",
-            model="Unofficial API",
+            manufacturer="Softlink",
+            model=model,
         )
 
 
