@@ -23,28 +23,8 @@ from .const import (
 from .coordinator import CEMAuthCoordinator
 from .userinfo_coordinator import CEMUserInfoCoordinator
 from .meter_counters_coordinator import CEMMeterCountersCoordinator
-from .water_coordinator import CEMWaterCoordinator
-
-
-def _slug_int(v: Optional[int]) -> str:
-    return str(v) if v is not None else "unknown"
-
-
-def _slug_text(s: Optional[str]) -> str:
-    if not isinstance(s, str) or not s.strip():
-        return "unknown"
-    out = []
-    for ch in s.strip().lower():
-        if ch.isalnum():
-            out.append(ch)
-        elif ch in (" ", "-", ".", "/"):
-            out.append("_")
-        else:
-            out.append("_")
-    slug = "".join(out)
-    while "__" in slug:
-        slug = slug.replace("__", "_")
-    return slug.strip("_") or "unknown"
+from .counter_reading_coordinator import CEMCounterReadingCoordinator
+from .utils import slug_int, slug_text
 
 
 async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
@@ -66,10 +46,10 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
         mis_id: Optional[int] = meta.get("mis_id")
         mis_name: Optional[str] = meta.get("mis_name")
 
-        water_map: dict[int, CEMWaterCoordinator] = meta.get("water", {})
+        counter_readings: dict[int, CEMCounterReadingCoordinator] = meta.get("counter_readings", {})
         counters_meta: dict[int, dict] = meta.get("counters_meta", {}) or {}
 
-        for vid, wc in water_map.items():
+        for vid, wc in counter_readings.items():
             pot_id: Optional[int] = None
             pot_info: Optional[dict[str, Any]] = None
 
@@ -179,7 +159,7 @@ class CEMApiStatusSensor(CoordinatorEntity[CEMAuthCoordinator], SensorEntity):
         company_id = (self._ui.data or {}).get("company_id")
         # Keep company id in the entity_id for uniqueness across accounts:
         name_label = (self._ui.data or {}).get("display_name") or (self._ui.data or {}).get("company")
-        self._attr_suggested_object_id = f"cem_account_{_slug_text(name_label)}_{_slug_int(company_id)}_status"
+        self._attr_suggested_object_id = f"cem_account_{slug_text(name_label)}_{slug_int(company_id)}_status"
 
     async def async_added_to_hass(self) -> None:
         # First let CoordinatorEntity register the listener
@@ -232,7 +212,7 @@ class CEMAccountSensor(CoordinatorEntity[CEMUserInfoCoordinator], SensorEntity):
         # Keep company id in the entity_id for uniqueness; visible name remains just "Account"
         company_id = (self.coordinator.data or {}).get("company_id")
         name_label = (self.coordinator.data or {}).get("display_name") or (self.coordinator.data or {}).get("company")
-        self._attr_suggested_object_id = f"cem_account_{_slug_text(name_label)}_{_slug_int(company_id)}_account"
+        self._attr_suggested_object_id = f"cem_account_{slug_text(name_label)}_{slug_int(company_id)}_account"
 
     async def async_added_to_hass(self) -> None:
         # First let CoordinatorEntity register the listener
@@ -272,7 +252,7 @@ class CEMAccountSensor(CoordinatorEntity[CEMUserInfoCoordinator], SensorEntity):
         }
 
 
-class CEMCounterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
+class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEntity):
     """Generic CEM counter reading per var_id, attached to the Object device."""
 
     _attr_force_update = True
@@ -281,7 +261,7 @@ class CEMCounterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
 
     def __init__(
         self,
-        coordinator: CEMWaterCoordinator,
+        coordinator: CEMCounterReadingCoordinator,
         counters: CEMMeterCountersCoordinator,
         ui: CEMUserInfoCoordinator,
         entry: ConfigEntry,
@@ -328,7 +308,7 @@ class CEMCounterSensor(CoordinatorEntity[CEMWaterCoordinator], SensorEntity):
         self._attr_name = f"{base_name} [{label}]"
         self._attr_unique_id = f"{entry.entry_id}_mis_{mis_id}_me_{me_id}_var_{var_id}"
 
-        mis_slug = _slug_text(mis_name if isinstance(mis_name, str) and mis_name.strip() else str(mis_id))
+        mis_slug = slug_text(mis_name if isinstance(mis_name, str) and mis_name.strip() else str(mis_id))
         self._attr_suggested_object_id = f"cem_object_{mis_slug}_meter_{label}_var_{var_id}"
 
         # Decide unit and state/device classes

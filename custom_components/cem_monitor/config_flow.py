@@ -22,6 +22,7 @@ from .const import (
     MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
 )
 from .api import CEMClient, AuthResult
+from .utils import get_int, get_str_nonempty
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,27 +37,6 @@ def _parse_csv_to_ints(csv: str) -> list[int]:
             continue
         out.append(int(s))
     return out
-
-
-def _ival(d: dict[str, Any], *keys: str) -> Optional[int]:
-    """Extract integer value from dict using multiple possible keys."""
-    for k in keys:
-        if k in d and d[k] is not None:
-            try:
-                return int(d[k])
-            except Exception:
-                pass
-    return None
-
-
-def _snonempty(*vals: Optional[str]) -> Optional[str]:
-    """Return first non-empty string from values."""
-    for v in vals:
-        if isinstance(v, str):
-            s = v.strip()
-            if s:
-                return s
-    return None
 
 
 class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -231,7 +211,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
             if isinstance(pot_list, list):
                 for p in pot_list:
-                    pid = _ival(p, "pot_id")
+                    pid = get_int(p, "pot_id")
                     if pid is not None:
                         pot_by_id[pid] = p
         except Exception as err:
@@ -247,12 +227,12 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Build objects map and name mapping
         objects_map: dict[int, dict[str, Any]] = {}
         for obj in objects_raw:
-            mis_id = _ival(obj, "mis_id", "misid", "misId", "id")
+            mis_id = get_int(obj, "mis_id", "misid", "misId", "id")
             if mis_id is None:
                 continue
             
             raw_by_mis[mis_id] = obj
-            mis_name = _snonempty(
+            mis_name = get_str_nonempty(
                 obj.get("mis_nazev"),
                 obj.get("mis_name"),
                 obj.get("name"),
@@ -281,7 +261,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         # Group meters by mis_id
         meters_by_object: dict[int, list[dict[str, Any]]] = {}
         for meter in meters_raw:
-            mis_id = _ival(meter, "mis_id", "misid", "misId", "object_id", "obj_id")
+            mis_id = get_int(meter, "mis_id", "misid", "misId", "object_id", "obj_id")
             if mis_id is None:
                 continue
             if mis_id not in meters_by_object:
@@ -293,15 +273,15 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             meters_list = meters_by_object.get(mis_id, [])
             
             for meter in meters_list:
-                me_id = _ival(meter, "me_id", "meid", "meId", "id")
+                me_id = get_int(meter, "me_id", "meid", "meId", "id")
                 if me_id is None:
                     continue
                 
-                me_serial = _snonempty(
+                me_serial = get_str_nonempty(
                     meter.get("me_serial"),
                     meter.get("serial"),
                 )
-                me_name = _snonempty(
+                me_name = get_str_nonempty(
                     meter.get("me_name"),
                     meter.get("name"),
                     meter.get("nazev"),
@@ -322,11 +302,11 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 first_jed_zkr = None
                 
                 for counter in counters_raw:
-                    var_id = _ival(counter, "var_id", "varId", "varid", "id")
+                    var_id = get_int(counter, "var_id", "varId", "varid", "id")
                     if var_id is None:
                         continue
                     
-                    counter_name = _snonempty(
+                    counter_name = get_str_nonempty(
                         counter.get("poc_desc"),
                         counter.get("name"),
                         counter.get("nazev"),
@@ -337,7 +317,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                     
                     # Get pot_info for this counter
-                    pot_id = _ival(counter, "pot_id")
+                    pot_id = get_int(counter, "pot_id")
                     pot_info = pot_by_id.get(pot_id) if pot_id is not None else None
                     
                     # Use first counter's pot_info for meter display
@@ -383,7 +363,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         while cur and cur not in visited:
             visited.add(cur)
             name = mis_name_by_id.get(cur)
-            if _snonempty(name):
+            if get_str_nonempty(name):
                 return name, cur
             raw = raw_by_mis.get(cur) or {}
             parent = raw.get("mis_idp")

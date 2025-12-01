@@ -9,7 +9,7 @@ USERINFO_URL = "https://cemapi.unimonitor.eu/api?id=9"     # user/company meta
 OBJECTS_URL = "https://cemapi.unimonitor.eu/api?id=23"     # list of objects -> mis_id[]
 METERS_URL = "https://cemapi.unimonitor.eu/api?id=108"     # list of meters -> me_id (optionally by mis)
 COUNTERS_BY_METER_URL = "https://cemapi.unimonitor.eu/api?id=107"  # counters by meter -> var_id (requires me_id)
-WATER_LAST_URL = "https://cemapi.unimonitor.eu/api?id=8"   # last reading per var_id
+COUNTER_LAST_URL = "https://cemapi.unimonitor.eu/api?id=8"   # last reading per var_id
 
 # Update cadence defaults
 DEFAULT_UPDATE_INTERVAL_SECONDS = 1800  # auth: fallback scheduling (will be adjusted to expiry)

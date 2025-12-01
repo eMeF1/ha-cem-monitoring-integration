@@ -10,6 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api import CEMClient
 from .coordinator import CEMAuthCoordinator
 from .retry import is_401_error
+from .utils import get_int, get_str
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,29 +54,13 @@ class CEMMetersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # Other errors (network errors are already retried by API client)
                 raise UpdateFailed(f"id=108 failed: {err}") from err
 
-        def _ival(d: Dict[str, Any], keys: List[str]) -> Optional[int]:
-            for k in keys:
-                if k in d:
-                    try:
-                        return int(d[k])
-                    except Exception:
-                        return None
-            return None
-
-        def _sval(d: Dict[str, Any], keys: List[str]) -> Optional[str]:
-            for k in keys:
-                v = d.get(k)
-                if isinstance(v, str) and v.strip():
-                    return v.strip()
-            return None
-
         meters: List[Dict[str, Any]] = []
         for it in items:
-            me_id = _ival(it, ["me_id", "meid", "meId", "id"])
+            me_id = get_int(it, "me_id", "meid", "meId", "id")
             if me_id is None:
                 continue
-            mis_id = _ival(it, ["mis_id", "misid", "misId", "object_id", "obj_id"])
-            me_name = _sval(it, ["name", "nazev", "název", "caption", "popis", "description", "me_name"])
+            mis_id = get_int(it, "mis_id", "misid", "misId", "object_id", "obj_id")
+            me_name = get_str(it, "name", "nazev", "název", "caption", "popis", "description", "me_name")
             meters.append({"me_id": me_id, "mis_id": mis_id, "me_name": me_name, "raw": it})
 
         return {"meters": meters}

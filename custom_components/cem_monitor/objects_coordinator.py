@@ -11,26 +11,9 @@ from .api import CEMClient
 from .coordinator import CEMAuthCoordinator
 from .const import DOMAIN
 from .retry import is_401_error
+from .utils import get_int, get_str
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _ival(d: Dict[str, Any], keys: List[str]) -> Optional[int]:
-    for k in keys:
-        if k in d:
-            try:
-                return int(d[k])
-            except Exception:
-                return None
-    return None
-
-
-def _sval(d: Dict[str, Any], keys: List[str]) -> Optional[str]:
-    for k in keys:
-        v = d.get(k)
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-    return None
 
 
 class CEMObjectsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -81,11 +64,11 @@ class CEMObjectsCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         raw_by_mis: Dict[int, Dict[str, Any]] = {}
 
         for it in raw_items:
-            mis_id = _ival(it, ["mis_id", "misid", "misId", "id"])
+            mis_id = get_int(it, "mis_id", "misid", "misId", "id")
             if mis_id is None:
                 continue
-            mis_name = _sval(it, ["mis_nazev", "mis_name", "name", "nazev", "název", "caption", "description"])
-            mis_idp = _ival(it, ["mis_idp", "parent_id", "parent"])
+            mis_name = get_str(it, "mis_nazev", "mis_name", "name", "nazev", "název", "caption", "description")
+            mis_idp = get_int(it, "mis_idp", "parent_id", "parent")
             objects.append(
                 {
                     "mis_id": mis_id,

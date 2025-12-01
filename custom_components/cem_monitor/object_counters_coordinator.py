@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant
@@ -11,17 +11,9 @@ from .api import CEMClient
 from .coordinator import CEMAuthCoordinator
 from .discovery import select_water_var_ids
 from .const import DOMAIN
+from .utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _ms_to_iso(ms: Any) -> str | None:
-    try:
-        if ms is None:
-            return None
-        return datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc).isoformat()
-    except Exception:
-        return None
 
 
 class CEMObjectCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -118,7 +110,7 @@ class CEMObjectCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     "name": name,
                     "unit": unit,
                     "timestamp_ms": ts_ms,
-                    "timestamp_iso": _ms_to_iso(ts_ms),
+                    "timestamp_iso": ms_to_iso(ts_ms),
                 }
             )
             raw_map[var_id] = item  # store the full raw JSON for per-var lookup

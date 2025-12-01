@@ -21,33 +21,12 @@ from .userinfo_coordinator import CEMUserInfoCoordinator
 from .objects_coordinator import CEMObjectsCoordinator
 from .meters_coordinator import CEMMetersCoordinator
 from .meter_counters_coordinator import CEMMeterCountersCoordinator
-from .water_coordinator import CEMWaterCoordinator
+from .counter_reading_coordinator import CEMCounterReadingCoordinator
+from .utils import get_int, get_str_nonempty
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor"]
-
-
-# ----------------------------
-# Helpers
-# ----------------------------
-def _ival(d: Dict[str, Any], *keys: str) -> Optional[int]:
-    for k in keys:
-        if k in d and d[k] is not None:
-            try:
-                return int(d[k])
-            except Exception:
-                return None
-    return None
-
-
-def _snonempty(*vals: Optional[str]) -> Optional[str]:
-    for v in vals:
-        if isinstance(v, str):
-            s = v.strip()
-            if s:
-                return s
-    return None
 
 
 def _build_objects_maps(objects_data: dict[str, Any]) -> tuple[dict[int, dict], dict[int, Optional[str]]]:
@@ -68,7 +47,7 @@ def _build_objects_maps(objects_data: dict[str, Any]) -> tuple[dict[int, dict], 
             except Exception:
                 continue
             raw_by_mis[mid] = raw
-            mis_name_by_id[mid] = _snonempty(
+            mis_name_by_id[mid] = get_str_nonempty(
                 raw.get("mis_nazev"),
                 raw.get("mis_name"),
                 raw.get("name"),
@@ -96,7 +75,7 @@ def _resolve_object_name(
     while cur and cur not in visited:
         visited.add(cur)
         name = mis_name_by_id.get(cur)
-        if _snonempty(name):
+        if get_str_nonempty(name):
             return name, cur
         raw = raw_by_mis.get(cur) or {}
         parent = raw.get("mis_idp")
@@ -164,23 +143,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     _LOGGER.error("CEM get_raw: me_id is required for counters_by_meter")
                     return
                 data = await client.get_counters_by_meter(int(me_id), token, cookie)
-            elif endpoint == "water_last":
+            elif endpoint == "counter_last":
                 var_id = call.data.get("var_id")
                 if var_id is None:
-                    _LOGGER.error("CEM get_raw: var_id is required for water_last")
+                    _LOGGER.error("CEM get_raw: var_id is required for counter_last")
                     return
-                # For water_last we want the raw id=8 payload, not the processed dict,
-                # so we re-implement the call similar to CEMClient.get_water_consumption
-                from .const import WATER_LAST_URL
+                # For counter_last we want the raw id=8 payload, not the processed dict,
+                # so we re-implement the call similar to CEMClient.get_counter_reading
+                from .const import COUNTER_LAST_URL
                 headers = await client._auth_headers(token, cookie)  # type: ignore[attr-defined]
-                url = f"{WATER_LAST_URL}&var_id={int(var_id)}"
+                url = f"{COUNTER_LAST_URL}&var_id={int(var_id)}"
                 from aiohttp import ClientTimeout
                 timeout = ClientTimeout(total=20)
                 async with client._session.get(url, headers=headers, timeout=timeout) as resp:  # type: ignore[attr-defined]
                     resp.raise_for_status()
                     text = await resp.text()
-                    _LOGGER.debug("CEM get_raw water_last: HTTP %s", resp.status)
-                    _LOGGER.debug("CEM get_raw water_last: raw body (first 300 chars): %s", text[:300])
+                    _LOGGER.debug("CEM get_raw counter_last: HTTP %s", resp.status)
+                    _LOGGER.debug("CEM get_raw counter_last: raw body (first 300 chars): %s", text[:300])
                     data = await resp.json(content_type=None)
             else:
                 _LOGGER.error("CEM get_raw: unknown endpoint %s", endpoint)
@@ -238,8 +217,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     var_shares: Dict[int, List[int]] = {}
     bag["var_shares"] = var_shares
 
-    # One water coordinator per var_id per account
-    water_map: Dict[int, CEMWaterCoordinator] = bag.setdefault("water", {})
+    # One counter reading coordinator per var_id per account
+    counter_map: Dict[int, CEMCounterReadingCoordinator] = bag.setdefault("counter_readings", {})
 
     # NEW: Build pot_types mapping using global id=222 (no met_id needed)
     pot_by_id: Dict[int, Dict[str, Any]] = {}
@@ -283,13 +262,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
     for m in meters_list:
-        me_id = _ival(m, "me_id", "meid", "meId")
+        me_id = get_int(m, "me_id", "meid", "meId")
         if me_id is None:
             continue
 
-        me_name = _snonempty(m.get("me_name"), m.get("me_desc"))
-        me_serial = _snonempty(m.get("me_serial"), (m.get("raw") or {}).get("me_serial"))
-        mis_id = _ival(m, "mis_id", "misid", "misId", "object_id", "obj_id")
+        me_name = get_str_nonempty(m.get("me_name"), m.get("me_desc"))
+        me_serial = get_str_nonempty(m.get("me_serial"), (m.get("raw") or {}).get("me_serial"))
+        mis_id = get_int(m, "mis_id", "misid", "misId", "object_id", "obj_id")
 
         # Resolve a friendly object name (climb parent if unnamed)
         mis_name, mis_name_source = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
@@ -370,12 +349,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         )
 
         # Wire coordinators for all selected counters (unchanged)
-        this_meter_water: Dict[int, CEMWaterCoordinator] = {}
+        this_meter_counters: Dict[int, CEMCounterReadingCoordinator] = {}
         for vid in selected_var_ids:
-            if vid not in water_map:
-                water_map[vid] = CEMWaterCoordinator(hass, client, auth, var_id=vid)
-                await water_map[vid].async_config_entry_first_refresh()
-            this_meter_water[vid] = water_map[vid]
+            if vid not in counter_map:
+                counter_map[vid] = CEMCounterReadingCoordinator(hass, client, auth, var_id=vid)
+                await counter_map[vid].async_config_entry_first_refresh()
+            this_meter_counters[vid] = counter_map[vid]
             var_shares.setdefault(int(vid), []).append(int(me_id))
 
         meters_map[int(me_id)] = {
@@ -386,15 +365,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             "mis_name_source_mis_id": mis_name_source,
             "counters": mc,
             "counters_meta": meter_counters_meta,
-            "water": this_meter_water,
+            "counter_readings": this_meter_counters,
         }
 
-    # Periodic refresh for all water coordinators (id=8)
+    # Periodic refresh for all counter reading coordinators (id=8)
     # Clean up existing timer if it exists (in case of reload/options change)
-    existing_unsub = bag.get("water_refresh_unsub")
+    existing_unsub = bag.get("counter_refresh_unsub")
     if callable(existing_unsub):
         existing_unsub()
-        _LOGGER.debug("CEM: Cleaned up existing water refresh timer")
+        _LOGGER.debug("CEM: Cleaned up existing counter refresh timer")
     
     # Get configured update interval or use default (30 minutes)
     update_interval_minutes = entry.options.get(
@@ -404,17 +383,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.debug("CEM: Counter update interval set to %d minutes", update_interval_minutes)
 
     @callback
-    def _water_refresh_callback(now) -> None:
-        water_map_local: Dict[int, CEMWaterCoordinator] = bag.get("water", {})
-        count = len(water_map_local)
-        _LOGGER.debug("CEM water: scheduled refresh tick (%d coordinators)", count)
-        for coord in water_map_local.values():
+    def _counter_refresh_callback(now) -> None:
+        counter_map_local: Dict[int, CEMCounterReadingCoordinator] = bag.get("counter_readings", {})
+        count = len(counter_map_local)
+        _LOGGER.debug("CEM counter: scheduled refresh tick (%d coordinators)", count)
+        for coord in counter_map_local.values():
             # schedule the coroutine properly
             hass.async_create_task(coord.async_request_refresh())
 
     # Run at configured interval (default: 30 minutes)
-    bag["water_refresh_unsub"] = async_track_time_interval(
-        hass, _water_refresh_callback, update_interval
+    bag["counter_refresh_unsub"] = async_track_time_interval(
+        hass, _counter_refresh_callback, update_interval
     )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -426,7 +405,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     if unload_ok:
         bag = hass.data[DOMAIN].pop(entry.entry_id, None)
         if bag is not None:
-            unsub = bag.get("water_refresh_unsub")
+            unsub = bag.get("counter_refresh_unsub")
             if callable(unsub):
                 unsub()
     return unload_ok

@@ -15,7 +15,7 @@ get_raw:
             - objects
             - meters
             - counters_by_meter
-            - water_last
+            - counter_last
 
     mis_id:
       name: Object ID (mis_id)
@@ -41,7 +41,7 @@ get_raw:
 
     var_id:
       name: Counter ID (var_id)
-      description: Used with the water_last endpoint (optional).
+      description: Used with the counter_last endpoint (optional).
       required: false
       example: 104437
       selector:

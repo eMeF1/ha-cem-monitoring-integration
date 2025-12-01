@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable, Optional, List, Tuple
 
+from .utils import get_int, get_str
+
 _LOGGER = logging.getLogger(__name__)
 
 _WATER_NAME_HINTS = (
@@ -12,26 +14,13 @@ _WATER_NAME_HINTS = (
 _WATER_UNIT_HINTS = ("m3", "m³", "l", "lit", "liter", "litre", "liters", "litres")
 _WATER_TYPE_HINTS = ("water", "voda", "vodomer", "vodoměr")
 
-def _get_int(item: dict[str, Any], *keys: str) -> Optional[int]:
-    for k in keys:
-        if k in item:
-            try:
-                return int(item[k])
-            except Exception:
-                pass
-    return None
-
-def _get_str(item: dict[str, Any], *keys: str) -> str:
-    for k in keys:
-        v = item.get(k)
-        if isinstance(v, str) and v.strip():
-            return v.strip()
-    return ""
-
 def _looks_like_water(item: dict[str, Any]) -> int:
-    name = _get_str(item, "name", "nazev", "název", "caption", "popis", "description").lower()
-    unit = _get_str(item, "unit", "jednotka").lower()
-    ctype = _get_str(item, "type", "typ", "medium", "druh").lower()
+    name_str = get_str(item, "name", "nazev", "název", "caption", "popis", "description")
+    name = name_str.lower() if name_str else ""
+    unit_str = get_str(item, "unit", "jednotka")
+    unit = unit_str.lower() if unit_str else ""
+    ctype_str = get_str(item, "type", "typ", "medium", "druh")
+    ctype = ctype_str.lower() if ctype_str else ""
     score = 0
     if name:
         score += sum(h in name for h in _WATER_NAME_HINTS)
@@ -55,7 +44,7 @@ def _get_timestamp_ms(item: dict[str, Any]) -> int:
 def select_water_var_ids(counters: Iterable[dict[str, Any]]) -> List[int]:
     ranked: List[Tuple[int,int,int]] = []
     for item in counters or []:
-        var_id = _get_int(item, "var_id", "varId", "varid", "id")
+        var_id = get_int(item, "var_id", "varId", "varid", "id")
         if var_id is None:
             continue
         score = _looks_like_water(item)

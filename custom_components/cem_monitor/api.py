@@ -12,7 +12,7 @@ from .const import (
     OBJECTS_URL,
     METERS_URL,
     COUNTERS_BY_METER_URL,
-    WATER_LAST_URL,
+    COUNTER_LAST_URL,
 )
 from .retry import async_retry_with_backoff
 
@@ -212,20 +212,20 @@ class CEMClient:
 
         raise ValueError(f"id=107 failed for me_id={me_id}; tried: {tried}")
 
-    async def get_water_consumption(self, var_id: int, token: str, cookie: Optional[str]) -> Dict[str, Any]:
+    async def get_counter_reading(self, var_id: int, token: str, cookie: Optional[str]) -> Dict[str, Any]:
         """GET id=8 for a given var_id -> {'value': float, 'timestamp_ms': int}"""
         headers = await self._auth_headers(token, cookie)
 
-        url = f"{WATER_LAST_URL}&var_id={int(var_id)}"
+        url = f"{COUNTER_LAST_URL}&var_id={int(var_id)}"
         timeout = ClientTimeout(total=20)
 
-        async def _do_get_water_consumption() -> Dict[str, Any]:
-            _LOGGER.debug("CEM water: GET %s", url)
+        async def _do_get_counter_reading() -> Dict[str, Any]:
+            _LOGGER.debug("CEM counter: GET %s", url)
             async with self._session.get(url, headers=headers, timeout=timeout) as resp:
                 resp.raise_for_status()
                 text = await resp.text()
-                _LOGGER.debug("CEM water: HTTP %s", resp.status)
-                _LOGGER.debug("CEM water: raw body (first 300 chars): %s", text[:300])
+                _LOGGER.debug("CEM counter: HTTP %s", resp.status)
+                _LOGGER.debug("CEM counter: raw body (first 300 chars): %s", text[:300])
                 payload = await resp.json(content_type=None)
 
                 # id=8 is typically a list; be lenient if it ever wraps into {"data":[...]}
@@ -244,7 +244,7 @@ class CEMClient:
 
                 return {"value": float(value), "timestamp_ms": int(ts_ms)}
 
-        return await async_retry_with_backoff(_do_get_water_consumption, context=f"CEM water(var_id={var_id})")
+        return await async_retry_with_backoff(_do_get_counter_reading, context=f"CEM counter(var_id={var_id})")
         
     async def get_pot_types(
         self,

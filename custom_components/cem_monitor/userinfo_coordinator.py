@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -11,17 +11,9 @@ from .coordinator import CEMAuthCoordinator
 from .api import CEMClient
 from .const import DOMAIN
 from .retry import is_401_error
+from .utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _ms_to_iso(ms: Any) -> str | None:
-    try:
-        if ms in (None, "", 0):
-            return None
-        return datetime.fromtimestamp(int(ms) / 1000, tz=timezone.utc).isoformat()
-    except Exception:
-        return None
 
 
 class CEMUserInfoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -72,6 +64,6 @@ class CEMUserInfoCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "person_id": data.get("oso_id"),
             "company_id": data.get("fir_id"),   # <- used for naming
             "customer_id": data.get("zak_id"),
-            "login_valid_from": _ms_to_iso(data.get("log_od")),
-            "login_valid_to": _ms_to_iso(data.get("log_do")),
+            "login_valid_from": ms_to_iso(data.get("log_od")),
+            "login_valid_to": ms_to_iso(data.get("log_do")),
         }
