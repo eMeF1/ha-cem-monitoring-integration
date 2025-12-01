@@ -19,12 +19,15 @@ This project is community‑maintained and **not affiliated with CEM or Softlink
 - Discover objects (`mis_id`)
 - Discover meters (`me_id`, including serial numbers)
 - Discover counters (`var_id`) per meter
+- **Hierarchical counter selection** during setup — choose which counters to expose
+- **Configurable update intervals** — control how often counter readings are refreshed (default: 30 minutes, range: 1–1440 minutes)
 - Expose eligible counters as sensors with:
   - Meter ID (`me_id`)
   - Counter ID (`var_id`)
   - Meter serial (when available)
   - Unit metadata from CEM (e.g. `m³`, `kWh`, …)
 - Automatic device structure for account and objects
+- **Debug service** (`get_raw`) for inspecting raw CEM API responses
 
 > ℹ️ Historically the integration started as “water only”.  
 > It now supports **generic counters**, while still fully supporting water meters.
@@ -110,23 +113,26 @@ The integration performs a small set of **read‑only** HTTP calls against the C
 6. **id=8** – Last counter values  
    - Returns latest readings for specific counters (`var_id`)
 7. **id=222** – Global counter types / units  
+   - Fetched once per account setup to build a global mapping
    - Maps `pot_id` → unit and type metadata:
      - `jed_zkr` (unit abbreviation, e.g. `m³`)
      - `jed_nazev` (unit name, e.g. `metr krychlový`)
-     - `pot_type` (instantaneous / cumulative / state / derived)
+     - `pot_type` (counter type: 0=instantaneous, 1=cumulative/total, 2=state, 3=derived)
      - `lt_key` (label key for counter type)
+   - Used to filter counters: only types 0, 1, and 3 are exposed as sensors (type 2 state counters like door/contact sensors are excluded)
 
 The integration uses this chain:
 
 ```text
 ID 23: Places (mis_id, mis_nazev)
-   └─ ID 108 (per mis_id): Meters (me_id, me_serial, met_id)
+   └─ ID 108: Meters (me_id, me_serial, met_id, mis_id)
         └─ ID 107 (per me_id): Counters (var_id, pot_id)
-             └─ ID 222 (per pot_id): Unit & type (jed_zkr, jed_nazev, pot_type, lt_key)
-                  └─ ID 8: Last values for each var_id
+             └─ ID 222 (global, once): Unit & type mapping (jed_zkr, jed_nazev, pot_type, lt_key)
+                  └─ Filter by pot_type (exclude type 2)
+                       └─ ID 8: Last values for selected var_ids
 ```
 
-All calls are **read‑only** and designed to keep API load minimal.
+All calls are **read‑only** and designed to keep API load minimal. The integration uses endpoint id=222 to fetch all counter type definitions once, then filters counters based on `pot_type` before exposing them as sensors.
 
 For more details, see the public API site:
 
@@ -164,12 +170,73 @@ For more details, see the public API site:
 
 ## Configuration
 
+### Initial Setup
+
 1. Go to **Settings → Devices & Services → Add Integration**.
 2. Search for **CEM Monitoring Integration**.
-3. Enter your CEM credentials.
-4. Select the desired account if prompted.
+3. Enter your CEM credentials (username and password).
+4. After authentication, you'll be presented with a **hierarchical counter selection** screen showing:
+   - Objects (places) with their `mis_id`
+   - Meters within each object with serial numbers and counter types
+   - Individual counters (`var_id`) with their names
+5. Select the counters you want to expose as sensors (you can select multiple).
+6. Complete the setup.
 
-Multiple CEM accounts are supported.
+Multiple CEM accounts are supported — each account is configured separately.
+
+### Reconfiguration (Options)
+
+To change your counter selection or update interval after initial setup:
+
+1. Go to **Settings → Devices & Services**.
+2. Find your **CEM Monitoring Integration** entry.
+3. Click **Configure** (or the three-dot menu → **Configure**).
+4. You can:
+   - **Select/deselect counters** — modify which counters are exposed as sensors
+   - **Adjust update interval** — set how often counter readings are refreshed
+     - Default: 30 minutes
+     - Range: 1–1440 minutes (1 minute to 24 hours)
+     - Lower intervals mean more frequent updates but higher API usage
+
+Changes take effect after saving and the integration automatically reloads.
+
+---
+
+## Services
+
+### `cem_monitor.get_raw`
+
+Call a CEM API endpoint and receive the raw JSON response via a Home Assistant event. This service is useful for debugging and inspecting the CEM API responses.
+
+**Service Data:**
+- `endpoint` (required): The CEM endpoint to call. Available options:
+  - `user_info` — User/company information (id=9)
+  - `objects` — List of objects/places (id=23)
+  - `meters` — List of meters (id=108)
+  - `counters_by_meter` — Counters for a specific meter (id=107)
+  - `counter_last` — Last reading for a specific counter (id=8)
+- `mis_id` (optional): Object ID, required for `meters` endpoint
+- `me_id` (optional): Meter ID, required for `counters_by_meter` endpoint
+- `var_id` (optional): Counter ID, required for `counter_last` endpoint
+
+**Event:**
+After calling the service, a `cem_monitor_raw_response` event is fired with:
+- `endpoint`: The endpoint that was called
+- `data`: The raw JSON response from the CEM API
+- `context_id`: The context ID of the service call
+
+**Example:**
+```yaml
+service: cem_monitor.get_raw
+data:
+  endpoint: counter_last
+  var_id: 104437
+```
+
+Then listen for the event:
+```yaml
+event: cem_monitor_raw_response
+```
 
 ---
 
@@ -187,6 +254,20 @@ Multiple CEM accounts are supported.
 - **No counters or missing entities**  
   - Verify the CEM web portal shows meters and counters for your account.
   - Check Home Assistant logs for messages from `custom_components.cem_monitor`.
+  - Remember that only counters you selected during setup (or in options) are exposed. If you want to add more counters, use the **Configure** option in the integration settings.
+
+- **Counter not showing up**  
+  - The counter may not have been selected during setup. Go to **Settings → Devices & Services → CEM Monitoring Integration → Configure** and ensure the counter is selected.
+  - Some counter types (state counters like door/contact sensors) are automatically excluded. Only numeric counters (instantaneous, cumulative, and derived) are exposed.
+
+- **Counters not updating**  
+  - Check the update interval setting in the integration options (default: 30 minutes).
+  - If you need more frequent updates, reduce the interval (minimum: 1 minute). Note that very short intervals may increase API load.
+  - Check Home Assistant logs for any errors during refresh.
+
+- **Too many API calls**  
+  - Increase the counter update interval in the integration options to reduce API usage.
+  - Consider selecting only the counters you actually need rather than all available counters.
 
 ---
 
