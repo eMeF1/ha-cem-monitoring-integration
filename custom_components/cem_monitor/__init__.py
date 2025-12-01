@@ -90,6 +90,11 @@ def _resolve_object_name(
 # ----------------------------
 # HA entry points
 # ----------------------------
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload integration when options are updated."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up CEM Monitoring Integration from a config entry."""
     session = async_get_clientsession(hass)
@@ -98,6 +103,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     hass.data.setdefault(DOMAIN, {})
     bag: Dict[str, Any] = hass.data[DOMAIN].setdefault(entry.entry_id, {})
     bag["client"] = client
+
+    # Register update listener to reload integration when options change
+    entry.async_on_unload(
+        entry.add_update_listener(async_reload_entry)
+    )
 
     # Get allowed var_ids from config entry options (user selection)
     allowed_var_ids: Optional[List[int]] = entry.options.get(CONF_VAR_IDS)
