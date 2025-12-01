@@ -29,9 +29,6 @@ This project is community‑maintained and **not affiliated with CEM or Softlink
 - Automatic device structure for account and objects
 - **Debug service** (`get_raw`) for inspecting raw CEM API responses
 
-> ℹ️ Historically the integration started as “water only”.  
-> It now supports **generic counters**, while still fully supporting water meters.
-
 ---
 
 ## Devices & Entities
