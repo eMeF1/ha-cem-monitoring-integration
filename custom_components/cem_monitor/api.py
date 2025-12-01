@@ -12,6 +12,7 @@ from .const import (
     OBJECTS_URL,
     METERS_URL,
     COUNTERS_BY_METER_URL,
+    COUNTERS_BY_OBJECT_URL,
     COUNTER_LAST_URL,
 )
 from .retry import async_retry_with_backoff
@@ -211,6 +212,39 @@ class CEMClient:
                 _LOGGER.debug("CEM counters(me=%s): try %s failed: %s", me_id, param, err)
 
         raise ValueError(f"id=107 failed for me_id={me_id}; tried: {tried}")
+
+    async def get_counters_for_object(self, mis_id: int, token: str, cookie: Optional[str]) -> List[Dict[str, Any]]:
+        """GET id=45 for a given mis_id: returns counters with var_id and full meta.
+        Accepts both top-level list and {"data":[...]} wrapper.
+        """
+        headers = await self._auth_headers(token, cookie)
+
+        async def _fetch(url: str) -> List[Dict[str, Any]]:
+            timeout = ClientTimeout(total=20)
+
+            async def _do_fetch() -> List[Dict[str, Any]]:
+                _LOGGER.debug("CEM counters(mis=%s): GET %s", mis_id, url)
+                async with self._session.get(url, headers=headers, timeout=timeout) as resp:
+                    resp.raise_for_status()
+                    text = await resp.text()
+                    _LOGGER.debug("CEM counters(mis=%s): HTTP %s", mis_id, resp.status)
+                    _LOGGER.debug("CEM counters(mis=%s): raw body (first 300 chars): %s", mis_id, text[:300])
+                    payload = await resp.json(content_type=None)
+                    return _coerce_list(payload, "id=45")
+
+            return await async_retry_with_backoff(_do_fetch, context=f"CEM counters(mis={mis_id})")
+
+        tried = []
+        for param in ("mis_id", "misid", "misId"):
+            url = f"{COUNTERS_BY_OBJECT_URL}&{param}={int(mis_id)}"
+            tried.append(url)
+            try:
+                items = await _fetch(url)
+                return items
+            except Exception as err:
+                _LOGGER.debug("CEM counters(mis=%s): try %s failed: %s", mis_id, param, err)
+
+        raise ValueError(f"id=45 failed for mis_id={mis_id}; tried: {tried}")
 
     async def get_counter_reading(self, var_id: int, token: str, cookie: Optional[str]) -> Dict[str, Any]:
         """GET id=8 for a given var_id -> {'value': float, 'timestamp_ms': int}"""

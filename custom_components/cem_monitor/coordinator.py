@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, Callable, Awaitable
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -16,8 +16,90 @@ from .const import (
     CONF_PASSWORD,
 )
 from .api import CEMClient, AuthResult
+from .retry import is_401_error
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class CEMBaseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Base coordinator class that provides standardized 401 error handling."""
+
+    def __init__(self, hass: HomeAssistant, logger: logging.Logger, name: str, auth: "CEMAuthCoordinator", update_interval=None) -> None:
+        """Initialize base coordinator with auth reference."""
+        super().__init__(hass, logger=logger, name=name, update_interval=update_interval)
+        self._auth = auth
+
+    def _get_auth_credentials(self) -> tuple[Optional[str], Optional[str]]:
+        """
+        Get current token and cookie from auth coordinator.
+        
+        Returns:
+            Tuple of (token, cookie). Both may be None.
+        """
+        token = self._auth.token
+        cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
+        return token, cookie
+
+    async def _ensure_token(self, context: str = "") -> tuple[str, Optional[str]]:
+        """
+        Ensure we have a valid token, refreshing if necessary.
+        
+        Args:
+            context: Optional context string for error messages (e.g., "for counter reading")
+        
+        Returns:
+            Tuple of (token, cookie). Token is guaranteed to be non-None.
+            
+        Raises:
+            UpdateFailed: If no token is available even after refresh.
+        """
+        token = self._auth.token
+        if not token:
+            await self._auth.async_request_refresh()
+            token = self._auth.token
+            if not token:
+                error_msg = f"No token available{context}"
+                raise UpdateFailed(error_msg)
+        cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
+        return token, cookie
+
+    async def _handle_401_error(
+        self,
+        err: Exception,
+        api_call: Callable[[str, Optional[str]], Awaitable[Any]],
+        context: str,
+        error_prefix: str,
+    ) -> Any:
+        """
+        Handle 401 errors by refreshing token and retrying once.
+        
+        Args:
+            err: The exception that was raised
+            api_call: Async callable that performs the API call with (token, cookie) arguments
+            context: Context string for logging (e.g., "CEM counters(me=123)")
+            error_prefix: Prefix for UpdateFailed messages (e.g., "Counters(me=123)")
+            
+        Returns:
+            Result from the API call after successful retry
+            
+        Raises:
+            UpdateFailed: If 401 persists after refresh, or if other errors occur
+        """
+        if not is_401_error(err):
+            # Not a 401 error, raise it as UpdateFailed
+            raise UpdateFailed(f"{error_prefix} failed: {err}") from err
+
+        # Handle 401 by refreshing token and retrying once
+        _LOGGER.debug("%s: 401 error, refreshing token and retrying", context)
+        await self._auth.async_request_refresh()
+        token, cookie = await self._ensure_token(f" after refresh for {error_prefix}")
+
+        try:
+            return await api_call(token, cookie)
+        except Exception as retry_err:
+            if is_401_error(retry_err):
+                raise UpdateFailed(f"{error_prefix} failed: authentication failed after token refresh") from retry_err
+            raise UpdateFailed(f"{error_prefix} failed after token refresh: {retry_err}") from retry_err
 
 
 class CEMAuthCoordinator(DataUpdateCoordinator[dict[str, Any]]):

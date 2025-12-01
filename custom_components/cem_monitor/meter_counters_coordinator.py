@@ -5,24 +5,22 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from .api import CEMClient
-from .coordinator import CEMAuthCoordinator
+from .coordinator import CEMBaseCoordinator, CEMAuthCoordinator
 from .discovery import select_water_var_ids
-from .retry import is_401_error
 from .utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class CEMMeterCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class CEMMeterCountersCoordinator(CEMBaseCoordinator):
     """Counters for a specific meter (id=107&me_id=...)."""
 
     def __init__(self, hass: HomeAssistant, client: CEMClient, auth: CEMAuthCoordinator, me_id: int, mis_id: Optional[int], me_name: Optional[str]) -> None:
-        super().__init__(hass, logger=_LOGGER, name=f"cem_monitor_counters_me_{me_id}", update_interval=timedelta(hours=12))
+        super().__init__(hass, logger=_LOGGER, name=f"cem_monitor_counters_me_{me_id}", auth=auth, update_interval=timedelta(hours=12))
         self._client = client
-        self._auth = auth
         self._me_id = int(me_id)
         self._mis_id = mis_id
         self._me_name = me_name
@@ -40,35 +38,18 @@ class CEMMeterCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._me_name
 
     async def _async_update_data(self) -> dict[str, Any]:
-        token = self._auth.token
-        if not token:
-            await self._auth.async_request_refresh()
-            token = self._auth.token
-            if not token:
-                raise UpdateFailed("No token available for counters")
-
-        cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
+        token, cookie = await self._ensure_token()
 
         try:
             raw_items = await self._client.get_counters_by_meter(self._me_id, token, cookie)
         except Exception as err:
             # Handle 401 by refreshing token and retrying once
-            if is_401_error(err):
-                _LOGGER.debug("CEM counters(me=%s): 401 error, refreshing token and retrying", self._me_id)
-                await self._auth.async_request_refresh()
-                token = self._auth.token
-                if not token:
-                    raise UpdateFailed(f"No token available after refresh for counters(me={self._me_id})") from err
-                cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
-                try:
-                    raw_items = await self._client.get_counters_by_meter(self._me_id, token, cookie)
-                except Exception as retry_err:
-                    if is_401_error(retry_err):
-                        raise UpdateFailed(f"Counters(me={self._me_id}) failed: authentication failed after token refresh") from retry_err
-                    raise UpdateFailed(f"Counters(me={self._me_id}) failed after token refresh: {retry_err}") from retry_err
-            else:
-                # Other errors (network errors are already retried by API client)
-                raise UpdateFailed(f"id=107 me={self._me_id} failed: {err}") from err
+            raw_items = await self._handle_401_error(
+                err,
+                lambda t, c: self._client.get_counters_by_meter(self._me_id, t, c),
+                f"CEM counters(me={self._me_id})",
+                f"Counters(me={self._me_id})",
+            )
 
         water_var_ids = select_water_var_ids(raw_items)
 

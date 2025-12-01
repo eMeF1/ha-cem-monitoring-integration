@@ -9,6 +9,7 @@ USERINFO_URL = "https://cemapi.unimonitor.eu/api?id=9"     # user/company meta
 OBJECTS_URL = "https://cemapi.unimonitor.eu/api?id=23"     # list of objects -> mis_id[]
 METERS_URL = "https://cemapi.unimonitor.eu/api?id=108"     # list of meters -> me_id (optionally by mis)
 COUNTERS_BY_METER_URL = "https://cemapi.unimonitor.eu/api?id=107"  # counters by meter -> var_id (requires me_id)
+COUNTERS_BY_OBJECT_URL = "https://cemapi.unimonitor.eu/api?id=45"  # counters by object -> var_id (requires mis_id)
 COUNTER_LAST_URL = "https://cemapi.unimonitor.eu/api?id=8"   # last reading per var_id
 
 # Update cadence defaults
