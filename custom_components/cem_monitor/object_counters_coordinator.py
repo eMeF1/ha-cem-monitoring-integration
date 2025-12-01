@@ -5,10 +5,10 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from .api import CEMClient
-from .coordinator import CEMAuthCoordinator
+from .coordinator import CEMBaseCoordinator, CEMAuthCoordinator
 from .discovery import select_water_var_ids
 from .const import DOMAIN
 from .utils import ms_to_iso
@@ -16,7 +16,7 @@ from .utils import ms_to_iso
 _LOGGER = logging.getLogger(__name__)
 
 
-class CEMObjectCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class CEMObjectCountersCoordinator(CEMBaseCoordinator):
     """Counters for a specific object (id=45&mis_id=...)."""
 
     def __init__(
@@ -31,10 +31,10 @@ class CEMObjectCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             hass,
             logger=_LOGGER,
             name=f"{DOMAIN}_counters_{mis_id}",
+            auth=auth,
             update_interval=timedelta(hours=12),
         )
         self._client = client
-        self._auth = auth
         self._mis_id = int(mis_id)
         self._mis_name = mis_name
 
@@ -47,21 +47,20 @@ class CEMObjectCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return self._mis_name
 
     async def _async_update_data(self) -> dict[str, Any]:
-        token = self._auth.token
-        if not token:
-            await self._auth.async_request_refresh()
-            token = self._auth.token
-            if not token:
-                raise UpdateFailed("No token available for counters")
-
-        cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
+        token, cookie = await self._ensure_token()
 
         try:
             raw_items: List[Dict[str, Any]] = await self._client.get_counters_for_object(
                 self._mis_id, token, cookie
             )
         except Exception as err:
-            raise UpdateFailed(f"id=45 mis={self._mis_id} failed: {err}") from err
+            # Handle 401 by refreshing token and retrying once
+            raw_items = await self._handle_401_error(
+                err,
+                lambda t, c: self._client.get_counters_for_object(self._mis_id, t, c),
+                f"CEM counters(mis={self._mis_id})",
+                f"Counters(mis={self._mis_id})",
+            )
 
         # Choose likely water counters (heuristics work on the raw payload)
         water_var_ids = select_water_var_ids(raw_items)

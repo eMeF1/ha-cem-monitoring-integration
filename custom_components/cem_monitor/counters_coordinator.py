@@ -5,9 +5,9 @@ from datetime import timedelta
 from typing import Any, List
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .coordinator import CEMAuthCoordinator
+from .coordinator import CEMBaseCoordinator, CEMAuthCoordinator
 from .api import CEMClient
 from .discovery import select_water_var_ids
 from .const import DOMAIN
@@ -15,28 +15,26 @@ from .utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
 
-class CEMCountersCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class CEMCountersCoordinator(CEMBaseCoordinator):
     """Fetches 'Last counters readings' (id=21) and normalizes output."""
 
     def __init__(self, hass: HomeAssistant, client: CEMClient, auth: CEMAuthCoordinator) -> None:
-        super().__init__(hass, logger=_LOGGER, name=f"{DOMAIN}_counters", update_interval=timedelta(hours=12))
+        super().__init__(hass, logger=_LOGGER, name=f"{DOMAIN}_counters", auth=auth, update_interval=timedelta(hours=12))
         self._client = client
-        self._auth = auth
 
     async def _async_update_data(self) -> dict[str, Any]:
-        token = self._auth.token
-        if not token:
-            await self._auth.async_request_refresh()
-            token = self._auth.token
-            if not token:
-                raise UpdateFailed("No token available for counters")
-
-        cookie = self._auth._last_result.cookie_value if self._auth._last_result else None
+        token, cookie = await self._ensure_token()
 
         try:
             payload = await self._client.get_last_counters_readings(token, cookie)
         except Exception as err:
-            raise UpdateFailed(f"id=21 failed: {err}") from err
+            # Handle 401 by refreshing token and retrying once
+            payload = await self._handle_401_error(
+                err,
+                lambda t, c: self._client.get_last_counters_readings(t, c),
+                "CEM counters",
+                "Counters",
+            )
 
         counters: List[dict[str, Any]] = []
         for item in payload:
