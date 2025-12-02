@@ -65,7 +65,12 @@ For each meter and selected counter, the integration exposes a sensor.
 The exact entity IDs depend on the counter type, but follow this pattern:
 
 - **Generic counter**  
-  `sensor.cem_object_<slug>_meter_<me_serial_or_id>_var_<var_id>`
+  `sensor.cem_object_<slug>_<base_name>_<me_serial>`
+  
+  Where:
+  - `<slug>` = object name slugified (e.g., `a_133`)
+  - `<base_name>` = counter type key (lt_key) slugified (e.g., `lb_poctyp_sv`)
+  - `<me_serial>` = meter serial number (e.g., `41020614`)
 
   Attributes:
   - `Company ID (fir_id)`
@@ -90,8 +95,8 @@ CEM Account <DISPLAY_NAME>
  └─ sensor.cem_account_<slug>_<company_id>_account
 
 CEM Object <OBJECT_NAME>
- ├─ sensor.cem_object_<slug>_meter_41020614_var_104437
- └─ sensor.cem_object_<slug>_meter_46147845_var_102496
+ ├─ sensor.cem_object_<slug>_<base_name>_<me_serial>
+ └─ sensor.cem_object_<slug>_<base_name>_<me_serial>
 ```
 
 ---
