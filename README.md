@@ -65,20 +65,27 @@ For each meter and selected counter, the integration exposes a sensor.
 The exact entity IDs depend on the counter type, but follow this pattern:
 
 - **Generic counter**  
-  `sensor.cem_object_<slug>_meter_<me_serial_or_id>_var_<var_id>`
+  `sensor.cem_object_<slug>_<base_name>_<me_serial>`
+  
+  Where:
+  - `<slug>` = object name slugified (e.g., `a_133`)
+  - `<base_name>` = counter type key (lt_key) slugified (e.g., `lb_poctyp_sv`)
+  - `<me_serial>` = meter serial number (e.g., `41020614`)
 
   Attributes:
-  - `meter_id` (`me_id`)
-  - `counter_id` (`var_id`)
-  - `reading_timestamp_ms`
-  - `last_poll_ms`
-  - `me_serial` (if provided by CEM)
-  - `mis_id`, `mis_name`
-  - `pot_id`
-  - `pot_type`
-  - `cem_unit_short` (CEM `jed_zkr`, e.g. `m³`)
-  - `cem_unit_name` (CEM `jed_nazev`)
-  - `cem_lt_key` (CEM `lt_key` for counter type)
+  - `Company ID (fir_id)`
+  - `Place ID (mis_id)`
+  - `Place name (mis_nazev)`
+  - `Meter ID (me_id)`
+  - `Meters serial (me_serial)`
+  - `Counter ID (var_id)`
+  - `Counter description (poc_desc)`
+  - `Counter type ID (pot_id)`
+  - `Counter value type (cik_nazev)`
+  - `Unit (jed_zkr)`
+  - `Language key for counter type name (lt_key)`
+  - `Readout timestamp`
+  - `Last updated`
 
 Example structure:
 
@@ -88,8 +95,8 @@ CEM Account <DISPLAY_NAME>
  └─ sensor.cem_account_<slug>_<company_id>_account
 
 CEM Object <OBJECT_NAME>
- ├─ sensor.cem_object_<slug>_meter_41020614_var_104437
- └─ sensor.cem_object_<slug>_meter_46147845_var_102496
+ ├─ sensor.cem_object_<slug>_<base_name>_<me_serial>
+ └─ sensor.cem_object_<slug>_<base_name>_<me_serial>
 ```
 
 ---
@@ -109,7 +116,11 @@ The integration performs a small set of **read‑only** HTTP calls against the C
    - Returns `var_id`, `me_id`, `pot_id`, last value and timestamp, …
 6. **id=8** – Last counter values  
    - Returns latest readings for specific counters (`var_id`)
-7. **id=222** – Global counter types / units  
+7. **id=11** – Counter value types  
+   - Fetched once per account setup with parameter `cis=50`
+   - Maps `pot_type` (via `cik_fk`) → `cik_nazev` (counter value type name)
+   - Provides human-readable names for counter value types (e.g., "Přírustková", "Absolutní", "Výčtová", "Absolutní součtová")
+8. **id=222** – Global counter types / units  
    - Fetched once per account setup to build a global mapping
    - Maps `pot_id` → unit and type metadata:
      - `jed_zkr` (unit abbreviation, e.g. `m³`)
@@ -125,11 +136,12 @@ ID 23: Places (mis_id, mis_nazev)
    └─ ID 108: Meters (me_id, me_serial, met_id, mis_id)
         └─ ID 107 (per me_id): Counters (var_id, pot_id)
              └─ ID 222 (global, once): Unit & type mapping (jed_zkr, jed_nazev, pot_type, lt_key)
-                  └─ Filter by pot_type (exclude type 2)
-                       └─ ID 8: Last values for selected var_ids
+                  └─ ID 11 (global, once, cis=50): Counter value type names (cik_fk → cik_nazev)
+                       └─ Filter by pot_type (exclude type 2)
+                            └─ ID 8: Last values for selected var_ids
 ```
 
-All calls are **read‑only** and designed to keep API load minimal. The integration uses endpoint id=222 to fetch all counter type definitions once, then filters counters based on `pot_type` before exposing them as sensors.
+All calls are **read‑only** and designed to keep API load minimal. The integration uses endpoints id=222 and id=11 to fetch all counter type definitions and value type names once during setup, then filters counters based on `pot_type` before exposing them as sensors.
 
 For more details, see the public API site:
 

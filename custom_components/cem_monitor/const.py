@@ -11,6 +11,7 @@ METERS_URL = "https://cemapi.unimonitor.eu/api?id=108"     # list of meters -> m
 COUNTERS_BY_METER_URL = "https://cemapi.unimonitor.eu/api?id=107"  # counters by meter -> var_id (requires me_id)
 COUNTERS_BY_OBJECT_URL = "https://cemapi.unimonitor.eu/api?id=45"  # counters by object -> var_id (requires mis_id)
 COUNTER_LAST_URL = "https://cemapi.unimonitor.eu/api?id=8"   # last reading per var_id
+COUNTER_VALUE_TYPES_URL = "https://cemapi.unimonitor.eu/api?id=11"  # counter value types (cis parameter)
 
 # Update cadence defaults
 DEFAULT_UPDATE_INTERVAL_SECONDS = 1800  # auth: fallback scheduling (will be adjusted to expiry)
