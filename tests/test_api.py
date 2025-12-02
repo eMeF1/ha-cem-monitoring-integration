@@ -216,3 +216,230 @@ class TestGetCounterReading:
 
         assert call_count == 1  # No retries
 
+
+class TestGetCounterReadingsBatch:
+    """Test get_counter_readings_batch method."""
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_success(self, client, mock_session):
+        """Test successful batch request with multiple var_ids."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}, {"value": 456.78, "timestamp": 1234567900, "var_id": 102496}]'
+        )
+        mock_response.json = AsyncMock(
+            return_value=[
+                {"value": 123.45, "timestamp": 1234567890, "var_id": 104437},
+                {"value": 456.78, "timestamp": 1234567900, "var_id": 102496},
+            ]
+        )
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
+
+        assert len(result) == 2
+        assert result[104437]["value"] == 123.45
+        assert result[104437]["timestamp_ms"] == 1234567890
+        assert result[102496]["value"] == 456.78
+        assert result[102496]["timestamp_ms"] == 1234567900
+
+        # Verify POST was called with correct JSON body
+        mock_session.post.assert_called_once()
+        call_kwargs = mock_session.post.call_args[1]
+        assert call_kwargs["json"] == [{"var_id": 104437}, {"var_id": 102496}]
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_partial_response(self, client, mock_session):
+        """Test batch request where some var_ids are missing from response."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]'
+        )
+        mock_response.json = AsyncMock(
+            return_value=[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]
+        )
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
+
+        # Only one var_id in result
+        assert len(result) == 1
+        assert 104437 in result
+        assert 102496 not in result
+        assert result[104437]["value"] == 123.45
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_empty_list(self, client, mock_session):
+        """Test batch request with empty var_ids list."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value="[]")
+        mock_response.json = AsyncMock(return_value=[])
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        result = await client.get_counter_readings_batch([], "token", "cookie")
+
+        assert len(result) == 0
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_empty_response(self, client, mock_session):
+        """Test batch request with empty response array."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value="[]")
+        mock_response.json = AsyncMock(return_value=[])
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
+
+        assert len(result) == 0
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_missing_fields(self, client, mock_session):
+        """Test batch request where some readings have missing fields."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}, {"var_id": 102496}]'
+        )
+        mock_response.json = AsyncMock(
+            return_value=[
+                {"value": 123.45, "timestamp": 1234567890, "var_id": 104437},
+                {"var_id": 102496},  # Missing value and timestamp
+            ]
+        )
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
+
+        # Only valid reading should be in result
+        assert len(result) == 1
+        assert 104437 in result
+        assert 102496 not in result
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_missing_var_id(self, client, mock_session):
+        """Test batch request where some readings have missing var_id."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}, {"value": 456.78, "timestamp": 1234567900}]'
+        )
+        mock_response.json = AsyncMock(
+            return_value=[
+                {"value": 123.45, "timestamp": 1234567890, "var_id": 104437},
+                {"value": 456.78, "timestamp": 1234567900},  # Missing var_id
+            ]
+        )
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
+
+        # Only reading with var_id should be in result
+        assert len(result) == 1
+        assert 104437 in result
+        assert 102496 not in result
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_retry_on_timeout(self, client, mock_session):
+        """Test that batch request retries on timeout."""
+        call_count = 0
+
+        async def post_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ServerTimeoutError()
+            mock_response = AsyncMock()
+            mock_response.status = 200
+            mock_response.text = AsyncMock(return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]')
+            mock_response.json = AsyncMock(
+                return_value=[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]
+            )
+            mock_response.raise_for_status = MagicMock()
+            return mock_response
+
+        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+
+        result = await client.get_counter_readings_batch([104437], "token", "cookie")
+
+        assert result[104437]["value"] == 123.45
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_retry_on_500(self, client, mock_session):
+        """Test that batch request retries on 500 error."""
+        call_count = 0
+
+        async def post_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ClientResponseError(None, None, status=500)
+            mock_response = AsyncMock()
+            mock_response.status = 200
+            mock_response.text = AsyncMock(return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]')
+            mock_response.json = AsyncMock(
+                return_value=[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]
+            )
+            mock_response.raise_for_status = MagicMock()
+            return mock_response
+
+        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+
+        result = await client.get_counter_readings_batch([104437], "token", "cookie")
+
+        assert result[104437]["value"] == 123.45
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_wrapped_response(self, client, mock_session):
+        """Test batch request with wrapped response (data key)."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value='{"data": [{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]}'
+        )
+        mock_response.json = AsyncMock(
+            return_value={"data": [{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]}
+        )
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        result = await client.get_counter_readings_batch([104437], "token", "cookie")
+
+        assert len(result) == 1
+        assert result[104437]["value"] == 123.45
+        assert result[104437]["timestamp_ms"] == 1234567890
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_invalid_response_format(self, client, mock_session):
+        """Test batch request with invalid response format (not a list)."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value='{"error": "invalid"}')
+        mock_response.json = AsyncMock(return_value={"error": "invalid"})
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session.post.return_value.__aenter__.return_value = mock_response
+
+        with pytest.raises(ValueError, match="unexpected response"):
+            await client.get_counter_readings_batch([104437], "token", "cookie")
+

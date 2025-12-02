@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 import logging
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from homeassistant.config_entries import ConfigEntry
@@ -22,7 +23,7 @@ from .objects_coordinator import CEMObjectsCoordinator
 from .meters_coordinator import CEMMetersCoordinator
 from .meter_counters_coordinator import CEMMeterCountersCoordinator
 from .counter_reading_coordinator import CEMCounterReadingCoordinator
-from .utils import get_int, get_str_nonempty
+from .utils import get_int, get_str_nonempty, ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -434,12 +435,68 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     @callback
     def _counter_refresh_callback(now) -> None:
-        counter_map_local: Dict[int, CEMCounterReadingCoordinator] = bag.get("counter_readings", {})
-        count = len(counter_map_local)
-        _LOGGER.debug("CEM counter: scheduled refresh tick (%d coordinators)", count)
-        for coord in counter_map_local.values():
-            # schedule the coroutine properly
-            hass.async_create_task(coord.async_request_refresh())
+        """Callback for periodic counter refresh - uses batch API when possible."""
+        async def _do_batch_refresh() -> None:
+            counter_map_local: Dict[int, CEMCounterReadingCoordinator] = bag.get("counter_readings", {})
+            count = len(counter_map_local)
+            _LOGGER.debug("CEM counter: scheduled refresh tick (%d coordinators)", count)
+            
+            if count == 0:
+                return
+            
+            # Collect all var_ids
+            var_ids = list(counter_map_local.keys())
+            
+            # Get auth credentials
+            auth_local = bag.get("coordinator")
+            if not auth_local or not auth_local.token:
+                _LOGGER.warning("CEM counter batch: no auth token available, falling back to individual requests")
+                # Fallback to individual requests
+                for coord in counter_map_local.values():
+                    hass.async_create_task(coord.async_request_refresh())
+                return
+            
+            token = auth_local.token
+            cookie = auth_local._last_result.cookie_value if auth_local._last_result else None
+            client_local = bag.get("client")
+            
+            if not client_local:
+                _LOGGER.warning("CEM counter batch: no client available, falling back to individual requests")
+                # Fallback to individual requests
+                for coord in counter_map_local.values():
+                    hass.async_create_task(coord.async_request_refresh())
+                return
+            
+            # Attempt batch API call
+            try:
+                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                
+                # Update each coordinator with batch results
+                for var_id, coord in counter_map_local.items():
+                    if var_id in batch_results:
+                        reading = batch_results[var_id]
+                        # Format data to match what _async_update_data returns
+                        coord.data = {
+                            "value": reading.get("value"),
+                            "timestamp_ms": reading.get("timestamp_ms"),
+                            "timestamp_iso": ms_to_iso(reading.get("timestamp_ms")),
+                            "fetched_at": int(time.time() * 1000),  # ensures coordinator data always changes
+                        }
+                        coord.async_update_listeners()
+                    else:
+                        # Missing var_id in batch response - fallback to individual request
+                        _LOGGER.debug("CEM counter batch: var_id %d not in batch response, using individual request", var_id)
+                        hass.async_create_task(coord.async_request_refresh())
+                
+                _LOGGER.debug("CEM counter batch: successfully updated %d/%d coordinators", len(batch_results), count)
+                
+            except Exception as err:
+                _LOGGER.warning("CEM counter batch: batch request failed (%s), falling back to individual requests", err)
+                # Fallback to individual requests on error
+                for coord in counter_map_local.values():
+                    hass.async_create_task(coord.async_request_refresh())
+        
+        hass.async_create_task(_do_batch_refresh())
 
     # Run at configured interval (default: 30 minutes)
     bag["counter_refresh_unsub"] = async_track_time_interval(
