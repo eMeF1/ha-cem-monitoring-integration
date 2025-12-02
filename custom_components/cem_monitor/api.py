@@ -280,6 +280,75 @@ class CEMClient:
                 return {"value": float(value), "timestamp_ms": int(ts_ms)}
 
         return await async_retry_with_backoff(_do_get_counter_reading, context=f"CEM counter(var_id={var_id})")
+
+    async def get_counter_readings_batch(
+        self, var_ids: List[int], token: str, cookie: Optional[str]
+    ) -> Dict[int, Dict[str, Any]]:
+        """POST id=8 with batch var_ids -> {var_id: {'value': float, 'timestamp_ms': int}}"""
+        headers = await self._auth_headers(token, cookie)
+        headers["Content-Type"] = "application/json"
+
+        url = COUNTER_LAST_URL  # https://cemapi.unimonitor.eu/api?id=8
+        body = [{"var_id": int(vid)} for vid in var_ids]
+        timeout = ClientTimeout(total=20)
+
+        async def _do_get_counter_readings_batch() -> Dict[int, Dict[str, Any]]:
+            _LOGGER.debug("CEM counter batch: POST %s with %d var_ids", url, len(var_ids))
+            async with self._session.post(url, json=body, headers=headers, timeout=timeout) as resp:
+                resp.raise_for_status()
+                text = await resp.text()
+                _LOGGER.debug("CEM counter batch: HTTP %s", resp.status)
+                _LOGGER.debug("CEM counter batch: raw body (first 300 chars): %s", text[:300])
+                payload = await resp.json(content_type=None)
+
+                # Response is an array of objects: [{"value": float, "timestamp": int, "var_id": int}, ...]
+                readings = payload
+                if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+                    readings = payload["data"]
+
+                if not isinstance(readings, list):
+                    raise ValueError(f"id=8 batch unexpected response: {payload!r}")
+
+                # Build result dictionary mapping var_id -> reading data
+                result: Dict[int, Dict[str, Any]] = {}
+                for reading in readings:
+                    var_id_raw = reading.get("var_id")
+                    if var_id_raw is None:
+                        _LOGGER.warning("CEM counter batch: reading missing var_id: %r", reading)
+                        continue
+
+                    try:
+                        var_id = int(var_id_raw)
+                    except (ValueError, TypeError):
+                        _LOGGER.warning("CEM counter batch: invalid var_id in reading: %r", reading)
+                        continue
+
+                    value = reading.get("value")
+                    ts_ms = reading.get("timestamp")
+                    if value is None or ts_ms is None:
+                        _LOGGER.warning("CEM counter batch: reading missing value or timestamp: %r", reading)
+                        continue
+
+                    result[var_id] = {"value": float(value), "timestamp_ms": int(ts_ms)}
+
+                # Log any missing var_ids
+                requested_set = set(int(vid) for vid in var_ids)
+                received_set = set(result.keys())
+                missing = requested_set - received_set
+                if missing:
+                    _LOGGER.warning(
+                        "CEM counter batch: %d var_ids not in response: %s",
+                        len(missing),
+                        sorted(missing),
+                    )
+                else:
+                    _LOGGER.debug("CEM counter batch: received all %d var_ids", len(var_ids))
+
+                return result
+
+        return await async_retry_with_backoff(
+            _do_get_counter_readings_batch, context=f"CEM counter batch({len(var_ids)} var_ids)"
+        )
         
     async def get_pot_types(
         self,
