@@ -62,6 +62,7 @@ def counter_coordinator(mock_hass, mock_client, mock_auth_coordinator):
         "fetched_at": 1234567890,
     }
     coord.async_update_listeners = MagicMock()
+    coord.async_request_refresh = AsyncMock()
     return coord
 
 
