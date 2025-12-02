@@ -111,7 +111,11 @@ The integration performs a small set of **read‑only** HTTP calls against the C
    - Returns `var_id`, `me_id`, `pot_id`, last value and timestamp, …
 6. **id=8** – Last counter values  
    - Returns latest readings for specific counters (`var_id`)
-7. **id=222** – Global counter types / units  
+7. **id=11** – Counter value types  
+   - Fetched once per account setup with parameter `cis=50`
+   - Maps `pot_type` (via `cik_fk`) → `cik_nazev` (counter value type name)
+   - Provides human-readable names for counter value types (e.g., "Přírustková", "Absolutní", "Výčtová", "Absolutní součtová")
+8. **id=222** – Global counter types / units  
    - Fetched once per account setup to build a global mapping
    - Maps `pot_id` → unit and type metadata:
      - `jed_zkr` (unit abbreviation, e.g. `m³`)
@@ -127,11 +131,12 @@ ID 23: Places (mis_id, mis_nazev)
    └─ ID 108: Meters (me_id, me_serial, met_id, mis_id)
         └─ ID 107 (per me_id): Counters (var_id, pot_id)
              └─ ID 222 (global, once): Unit & type mapping (jed_zkr, jed_nazev, pot_type, lt_key)
-                  └─ Filter by pot_type (exclude type 2)
-                       └─ ID 8: Last values for selected var_ids
+                  └─ ID 11 (global, once, cis=50): Counter value type names (cik_fk → cik_nazev)
+                       └─ Filter by pot_type (exclude type 2)
+                            └─ ID 8: Last values for selected var_ids
 ```
 
-All calls are **read‑only** and designed to keep API load minimal. The integration uses endpoint id=222 to fetch all counter type definitions once, then filters counters based on `pot_type` before exposing them as sensors.
+All calls are **read‑only** and designed to keep API load minimal. The integration uses endpoints id=222 and id=11 to fetch all counter type definitions and value type names once during setup, then filters counters based on `pot_type` before exposing them as sensors.
 
 For more details, see the public API site:
 
