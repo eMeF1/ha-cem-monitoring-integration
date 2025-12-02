@@ -68,17 +68,19 @@ The exact entity IDs depend on the counter type, but follow this pattern:
   `sensor.cem_object_<slug>_meter_<me_serial_or_id>_var_<var_id>`
 
   Attributes:
-  - `meter_id` (`me_id`)
-  - `counter_id` (`var_id`)
-  - `reading_timestamp_ms`
-  - `last_poll_ms`
-  - `me_serial` (if provided by CEM)
-  - `mis_id`, `mis_name`
-  - `pot_id`
-  - `pot_type`
-  - `cem_unit_short` (CEM `jed_zkr`, e.g. `m³`)
-  - `cem_unit_name` (CEM `jed_nazev`)
-  - `cem_lt_key` (CEM `lt_key` for counter type)
+  - `Company ID (fir_id)`
+  - `Place ID (mis_id)`
+  - `Place name (mis_nazev)`
+  - `Meter ID (me_id)`
+  - `Meters serial (me_serial)`
+  - `Counter ID (var_id)`
+  - `Counter description (poc_desc)`
+  - `Counter type ID (pot_id)`
+  - `Counter value type (cik_nazev)`
+  - `Unit (jed_zkr)`
+  - `Language key for counter type name (lt_key)`
+  - `Readout timestamp`
+  - `Last updated`
 
 Example structure:
 

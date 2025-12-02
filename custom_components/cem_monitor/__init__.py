@@ -268,6 +268,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     bag["pot_types"] = pot_by_id
     _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
 
+    # Build counter value types mapping (id=11&cis=50): pot_type (cik_fk) -> cik_nazev
+    counter_value_types: Dict[int, str] = {}
+    if token:
+        try:
+            _LOGGER.debug("CEM counter_value_types: fetching counter value types (id=11&cis=50)")
+            cvt_payload = await client.get_counter_value_types(token, cookie, cis=50)
+            # id=11 returns an array of objects
+            cvt_list = cvt_payload if isinstance(cvt_payload, list) else (cvt_payload.get("data") if isinstance(cvt_payload, dict) else [])
+            if isinstance(cvt_list, list):
+                count = 0
+                for item in cvt_list:
+                    if not isinstance(item, dict):
+                        continue
+                    cik_fk = item.get("cik_fk")
+                    cik_nazev = item.get("cik_nazev")
+                    if cik_fk is not None and isinstance(cik_nazev, str) and cik_nazev.strip():
+                        try:
+                            pot_type_key = int(cik_fk)
+                            counter_value_types[pot_type_key] = cik_nazev.strip()
+                            count += 1
+                        except Exception:
+                            continue
+                _LOGGER.debug(
+                    "CEM counter_value_types: built mapping for %d pot_type values",
+                    count,
+                )
+        except Exception as err:
+            _LOGGER.debug("CEM counter_value_types: failed to fetch counter value types: %s", err)
+    else:
+        _LOGGER.warning("CEM counter_value_types: no auth token available, skipping id=11")
+
+    bag["counter_value_types"] = counter_value_types
+    _LOGGER.debug("CEM counter_value_types: loaded %d value type definitions", len(counter_value_types))
+
 
 
     # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
@@ -343,12 +377,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             if allowed_var_ids_set is not None and vid not in allowed_var_ids_set:
                 continue
 
+            # Lookup cik_nazev from counter_value_types using pot_type
+            cik_nazev: Optional[str] = None
+            if pot_type is not None:
+                cik_nazev = counter_value_types.get(pot_type)
+
             meter_counters_meta[vid] = {
                 "var_id": vid,
                 "pot_id": pot_id_int,
                 "pot_type": pot_type,
                 "pot_info": pot_info,
                 "raw_counter": raw_c,
+                "cik_nazev": cik_nazev,
             }
             selected_var_ids.append(vid)
 

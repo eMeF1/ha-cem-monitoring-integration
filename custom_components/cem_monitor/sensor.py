@@ -52,12 +52,14 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
         for vid, wc in counter_readings.items():
             pot_id: Optional[int] = None
             pot_info: Optional[dict[str, Any]] = None
+            cik_nazev: Optional[str] = None
 
             # 1) Prefer metadata precomputed in __init__.py
             meta_for_var = counters_meta.get(int(vid)) or counters_meta.get(vid)
             if isinstance(meta_for_var, dict):
                 pot_id = meta_for_var.get("pot_id")
                 pot_info = meta_for_var.get("pot_info")
+                cik_nazev = meta_for_var.get("cik_nazev")
 
             # 2) Fallback – if pot_info missing but pot_id known, use global pot_types
             if pot_info is None and pot_id is not None:
@@ -87,6 +89,7 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
                     mis_name=mis_name,
                     pot_id=pot_id,
                     pot_info=pot_info,
+                    cik_nazev=cik_nazev,
                 )
             )
 
@@ -272,6 +275,7 @@ class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEn
         mis_name: Optional[str],
         pot_id: Optional[int],
         pot_info: Optional[dict[str, Any]],
+        cik_nazev: Optional[str] = None,
     ) -> None:
         super().__init__(coordinator)
         self._entry = entry
@@ -285,6 +289,7 @@ class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEn
         self._pot_id = pot_id
         self._pot_info: dict[str, Any] = pot_info or {}
         self._pot_type = self._pot_info.get("pot_type")
+        self._cik_nazev = cik_nazev
         _LOGGER.debug(
             "CEMCounterSensor init: me_id=%s var_id=%s pot_id=%s pot_info_keys=%s",
             self._me_id,
@@ -408,9 +413,8 @@ class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEn
             "Counter ID (var_id)": self._var_id,
             "Counter description (poc_desc)": name,
             "Counter type ID (pot_id)": self._pot_id,
-            "Counter value type (pot_type)": self._pot_type,
+            "Counter value type (cik_nazev)": self._cik_nazev,
             "Unit (jed_zkr)": self._pot_info.get("jed_zkr"),
-            "Unit name (jed_nazev)": self._pot_info.get("jed_nazev"),
             "Language key for counter type name (lt_key)": self._pot_info.get("lt_key"),
             "Readout timestamp": data.get("timestamp_iso"),
             "Last updated": last_poll_iso,
