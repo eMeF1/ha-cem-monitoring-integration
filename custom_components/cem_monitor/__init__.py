@@ -17,6 +17,7 @@ from .const import (
     DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
 )
 from .api import CEMClient
+from .cache import TypesCache
 from .coordinator import CEMAuthCoordinator
 from .userinfo_coordinator import CEMUserInfoCoordinator
 from .objects_coordinator import CEMObjectsCoordinator
@@ -86,6 +87,92 @@ def _resolve_object_name(
             cur = None
 
     return None, None
+
+
+async def _fetch_pot_types_from_api(
+    client: CEMClient, token: Optional[str], cookie: Optional[str]
+) -> Dict[int, Dict[str, Any]]:
+    """
+    Fetch pot_types from API (id=222).
+
+    Returns:
+        Dictionary mapping pot_id -> pot type data
+    """
+    pot_by_id: Dict[int, Dict[str, Any]] = {}
+    if not token:
+        _LOGGER.warning("CEM pot_types: no auth token available, skipping id=222")
+        return pot_by_id
+
+    try:
+        _LOGGER.debug("CEM pot_types: fetching global pot type list (id=222)")
+        pot_payload = await client.get_pot_types(token, cookie)
+        # id=222 returns {"data": [...], "action": "get"}
+        pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
+        if not isinstance(pot_list, list):
+            _LOGGER.debug("CEM pot_types: unexpected response %r", pot_payload)
+        else:
+            count = 0
+            for p in pot_list:
+                pid = p.get("pot_id")
+                if pid is None:
+                    continue
+                try:
+                    pid_int = int(pid)
+                except Exception:
+                    continue
+                pot_by_id[pid_int] = p
+                count += 1
+            _LOGGER.debug(
+                "CEM pot_types: built mapping for %d pot_id values",
+                count,
+            )
+    except Exception as err:
+        _LOGGER.debug("CEM pot_types: failed to fetch global pot types: %s", err)
+
+    return pot_by_id
+
+
+async def _fetch_counter_value_types_from_api(
+    client: CEMClient, token: Optional[str], cookie: Optional[str]
+) -> Dict[int, str]:
+    """
+    Fetch counter_value_types from API (id=11&cis=50).
+
+    Returns:
+        Dictionary mapping pot_type -> counter value type name
+    """
+    counter_value_types: Dict[int, str] = {}
+    if not token:
+        _LOGGER.warning("CEM counter_value_types: no auth token available, skipping id=11")
+        return counter_value_types
+
+    try:
+        _LOGGER.debug("CEM counter_value_types: fetching counter value types (id=11&cis=50)")
+        cvt_payload = await client.get_counter_value_types(token, cookie, cis=50)
+        # id=11 returns an array of objects
+        cvt_list = cvt_payload if isinstance(cvt_payload, list) else (cvt_payload.get("data") if isinstance(cvt_payload, dict) else [])
+        if isinstance(cvt_list, list):
+            count = 0
+            for item in cvt_list:
+                if not isinstance(item, dict):
+                    continue
+                cik_fk = item.get("cik_fk")
+                cik_nazev = item.get("cik_nazev")
+                if cik_fk is not None and isinstance(cik_nazev, str) and cik_nazev.strip():
+                    try:
+                        pot_type_key = int(cik_fk)
+                        counter_value_types[pot_type_key] = cik_nazev.strip()
+                        count += 1
+                    except Exception:
+                        continue
+            _LOGGER.debug(
+                "CEM counter_value_types: built mapping for %d pot_type values",
+                count,
+            )
+    except Exception as err:
+        _LOGGER.debug("CEM counter_value_types: failed to fetch counter value types: %s", err)
+
+    return counter_value_types
 
 
 # ----------------------------
@@ -231,76 +318,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # One counter reading coordinator per var_id per account
     counter_map: Dict[int, CEMCounterReadingCoordinator] = bag.setdefault("counter_readings", {})
 
-    # NEW: Build pot_types mapping using global id=222 (no met_id needed)
-    pot_by_id: Dict[int, Dict[str, Any]] = {}
-
+    # Load pot_types and counter_value_types from cache or fetch from API
     token = auth.token
     cookie = auth._last_result.cookie_value if auth._last_result else None
 
-    if token:
-        try:
-            _LOGGER.debug("CEM pot_types: fetching global pot type list (id=222)")
-            pot_payload = await client.get_pot_types(token, cookie)
-            # id=222 returns {"data": [...], "action": "get"}
-            pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
-            if not isinstance(pot_list, list):
-                _LOGGER.debug("CEM pot_types: unexpected response %r", pot_payload)
-            else:
-                count = 0
-                for p in pot_list:
-                    pid = p.get("pot_id")
-                    if pid is None:
-                        continue
-                    try:
-                        pid_int = int(pid)
-                    except Exception:
-                        continue
-                    pot_by_id[pid_int] = p
-                    count += 1
-                _LOGGER.debug(
-                    "CEM pot_types: built mapping for %d pot_id values",
-                    count,
-                )
-        except Exception as err:
-            _LOGGER.debug("CEM pot_types: failed to fetch global pot types: %s", err)
+    # Initialize cache
+    types_cache = TypesCache(hass)
+    
+    # Try loading from cache first
+    pot_by_id, counter_value_types, cache_valid = await types_cache.load()
+    
+    if not cache_valid:
+        # Cache miss/invalid/expired - fetch from API
+        _LOGGER.debug("CEM types cache: cache miss or invalid, fetching from API")
+        
+        pot_by_id = await _fetch_pot_types_from_api(client, token, cookie)
+        counter_value_types = await _fetch_counter_value_types_from_api(client, token, cookie)
+        
+        # Save to cache for next time (only if we got valid data)
+        if pot_by_id or counter_value_types:
+            await types_cache.save(pot_by_id, counter_value_types)
+            _LOGGER.debug("CEM types cache: saved fetched data to cache")
     else:
-        _LOGGER.warning("CEM pot_types: no auth token available, skipping id=222")
+        _LOGGER.debug("CEM types cache: loaded from cache")
 
     bag["pot_types"] = pot_by_id
-    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
-
-    # Build counter value types mapping (id=11&cis=50): pot_type (cik_fk) -> cik_nazev
-    counter_value_types: Dict[int, str] = {}
-    if token:
-        try:
-            _LOGGER.debug("CEM counter_value_types: fetching counter value types (id=11&cis=50)")
-            cvt_payload = await client.get_counter_value_types(token, cookie, cis=50)
-            # id=11 returns an array of objects
-            cvt_list = cvt_payload if isinstance(cvt_payload, list) else (cvt_payload.get("data") if isinstance(cvt_payload, dict) else [])
-            if isinstance(cvt_list, list):
-                count = 0
-                for item in cvt_list:
-                    if not isinstance(item, dict):
-                        continue
-                    cik_fk = item.get("cik_fk")
-                    cik_nazev = item.get("cik_nazev")
-                    if cik_fk is not None and isinstance(cik_nazev, str) and cik_nazev.strip():
-                        try:
-                            pot_type_key = int(cik_fk)
-                            counter_value_types[pot_type_key] = cik_nazev.strip()
-                            count += 1
-                        except Exception:
-                            continue
-                _LOGGER.debug(
-                    "CEM counter_value_types: built mapping for %d pot_type values",
-                    count,
-                )
-        except Exception as err:
-            _LOGGER.debug("CEM counter_value_types: failed to fetch counter value types: %s", err)
-    else:
-        _LOGGER.warning("CEM counter_value_types: no auth token available, skipping id=11")
-
     bag["counter_value_types"] = counter_value_types
+    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
     _LOGGER.debug("CEM counter_value_types: loaded %d value type definitions", len(counter_value_types))
 
 

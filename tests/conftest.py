@@ -65,6 +65,34 @@ sys.modules['homeassistant.helpers.device_registry'].async_get = MagicMock()
 sys.modules['homeassistant.helpers.config_validation'] = MagicMock()
 sys.modules['homeassistant.helpers.config_validation'].cv = MagicMock()
 
+# Mock Store helper for caching
+homeassistant_helpers_storage_mock = MagicMock()
+
+# Create a mock Store class that supports async methods and type hints
+class MockStore:
+    """Mock Store class for testing."""
+    def __init__(self, hass, version, key):
+        self.hass = hass
+        self.version = version
+        self.key = key
+        self._data = None
+    
+    async def async_load(self):
+        return self._data
+    
+    async def async_save(self, data):
+        self._data = data
+    
+    async def async_remove(self):
+        self._data = None
+    
+    def __class_getitem__(cls, item):
+        # Support Store[dict[str, Any]] syntax
+        return cls
+
+sys.modules['homeassistant.helpers.storage'] = homeassistant_helpers_storage_mock
+sys.modules['homeassistant.helpers.storage'].Store = MockStore
+
 # Add custom_components to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

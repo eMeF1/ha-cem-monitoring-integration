@@ -5,7 +5,7 @@ from typing import Any, Optional
 import voluptuous as vol
 from aiohttp import ClientResponseError
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
@@ -21,6 +21,7 @@ from .const import (
     MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
 )
 from .api import CEMClient, AuthResult
+from .cache import TypesCache
 from .utils import get_int, get_str_nonempty
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,24 +67,31 @@ def _resolve_object_name(
 
 
 async def _fetch_objects_tree(
-    client: CEMClient, auth_result: AuthResult
+    hass: HomeAssistant, client: CEMClient, auth_result: AuthResult
 ) -> dict[int, dict[str, Any]]:
     """Fetch and build hierarchical tree: Objects → Meters → Counters."""
     token = auth_result.access_token
     cookie = auth_result.cookie_value
     
-    # Fetch pot_types once (id=222)
-    pot_by_id: dict[int, dict[str, Any]] = {}
-    try:
-        pot_payload = await client.get_pot_types(token, cookie)
-        pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
-        if isinstance(pot_list, list):
-            for p in pot_list:
-                pid = get_int(p, "pot_id")
-                if pid is not None:
-                    pot_by_id[pid] = p
-    except Exception as err:
-        _LOGGER.warning("Failed to fetch pot_types: %s", err)
+    # Load pot_types from cache first (read-only, cache updates handled in __init__.py)
+    types_cache = TypesCache(hass)
+    pot_by_id, _, cache_valid = await types_cache.load()
+    
+    if not cache_valid or not pot_by_id:
+        # Cache miss/invalid/expired - fetch from API
+        # Note: We don't save to cache here; cache updates are handled during setup in __init__.py
+        pot_by_id = {}
+        try:
+            pot_payload = await client.get_pot_types(token, cookie)
+            pot_list = pot_payload.get("data") if isinstance(pot_payload, dict) else pot_payload
+            if isinstance(pot_list, list):
+                for p in pot_list:
+                    pid = get_int(p, "pot_id")
+                    if pid is not None:
+                        pot_by_id[pid] = p
+        except Exception as err:
+            _LOGGER.warning("Failed to fetch pot_types: %s", err)
+            pot_by_id = {}
     
     # Fetch objects (id=23)
     objects_raw = await client.get_objects(token, cookie)
@@ -320,7 +328,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         # Fetch and build tree structure
         try:
-            tree_data = await _fetch_objects_tree(client, auth_result)
+            tree_data = await _fetch_objects_tree(self.hass, client, auth_result)
         except Exception as err:
             _LOGGER.exception("Error fetching objects tree: %s", err)
             errors["base"] = "fetch_failed"
@@ -458,7 +466,7 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
         
         # Fetch and build tree structure
         try:
-            tree_data = await _fetch_objects_tree(client, auth_result)
+            tree_data = await _fetch_objects_tree(self.hass, client, auth_result)
         except Exception as err:
             _LOGGER.exception("Error fetching objects tree: %s", err)
             errors["base"] = "fetch_failed"
