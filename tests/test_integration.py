@@ -1,5 +1,6 @@
 """End-to-end integration tests for CEM Monitor."""
 import pytest
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import timedelta
 import time
@@ -23,12 +24,51 @@ from custom_components.cem_monitor.const import (
 )
 
 
+class AsyncCreateTaskMock:
+    """Mock for async_create_task that properly handles coroutines and tracks calls."""
+    
+    def __init__(self):
+        self._call_count = 0
+        self._calls = []
+        self._tasks = []
+    
+    def __call__(self, coro):
+        """Handle async_create_task call (synchronous, like Home Assistant)."""
+        self._call_count += 1
+        self._calls.append(coro)
+        # In Home Assistant, async_create_task schedules the coroutine as a task
+        # Create a task to consume the coroutine and avoid warnings
+        # The task will be garbage collected, but at least it's properly created
+        if asyncio.iscoroutine(coro):
+            try:
+                # Try to get the current event loop
+                loop = asyncio.get_event_loop()
+                task = loop.create_task(coro)
+                self._tasks.append(task)
+            except RuntimeError:
+                # No event loop running, create task in a new loop context
+                # This shouldn't happen in tests, but handle it gracefully
+                pass
+        # Return a mock task object
+        return MagicMock()
+    
+    @property
+    def called(self):
+        """Check if the mock was called."""
+        return self._call_count > 0
+    
+    @property
+    def call_count(self):
+        """Get the number of calls."""
+        return self._call_count
+
+
 @pytest.fixture
 def mock_hass():
     """Create a mock Home Assistant instance."""
     hass = MagicMock()
     hass.data = {}
-    hass.async_create_task = MagicMock()
+    hass.async_create_task = AsyncCreateTaskMock()
     hass.bus = MagicMock()
     hass.bus.async_fire = AsyncMock()
     hass.config_entries = MagicMock()
