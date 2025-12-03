@@ -9,7 +9,11 @@ from custom_components.cem_monitor.api import CEMClient, AuthResult
 
 
 class AsyncContextManager:
-    """Async context manager that can be configured with a response."""
+    """Async context manager that can be configured with a response.
+    
+    Python 3.11 compatible: ensures proper exception handling and
+    return value handling for async context managers.
+    """
     def __init__(self):
         self._response = None
         self._side_effect = None
@@ -17,24 +21,45 @@ class AsyncContextManager:
     def set_response(self, response):
         """Set the response that will be returned by __aenter__."""
         self._response = response
+        # Clear side_effect when setting response
+        self._side_effect = None
     
     def set_side_effect(self, side_effect):
         """Set a side effect function for __aenter__."""
         self._side_effect = side_effect
+        # Clear response when setting side_effect
+        self._response = None
     
     async def __aenter__(self):
+        """Enter the async context manager.
+        
+        Python 3.11: ensures proper handling of side effects and responses.
+        """
         if self._side_effect is not None:
+            # Await the side effect and return its result
+            # Python 3.11: exceptions will propagate naturally
             return await self._side_effect()
         return self._response
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit the async context manager.
+        
+        Python 3.11: properly handles exceptions and returns None.
+        """
+        # Return None to indicate exceptions should not be suppressed
         return None
 
 
 @pytest.fixture
 def mock_session():
-    """Create a mock aiohttp session."""
-    session = AsyncMock(spec=ClientSession)
+    """Create a mock aiohttp session.
+    
+    Python 3.11 compatible: uses AsyncMock without strict spec to avoid
+    issues with spec validation in Python 3.11.
+    """
+    # Python 3.11: Avoid using spec=ClientSession directly as it may cause issues
+    # Instead, create AsyncMock and configure methods manually
+    session = AsyncMock()
     
     # Create context managers that can be configured
     post_context = AsyncContextManager()

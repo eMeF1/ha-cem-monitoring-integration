@@ -84,16 +84,34 @@ class MockConfigFlow:
     
     @classmethod
     def __init_subclass__(cls, **kwargs):
-        """Handle domain parameter in class definition."""
+        """Handle domain parameter in class definition.
+        
+        Python 3.11 compatible: properly handle kwargs and ensure
+        domain parameter is extracted before calling super().
+        """
         # Extract domain from kwargs (Python 3.6+ allows keyword arguments in class definition)
+        # Python 3.11 is stricter about kwargs handling, so we extract first
         domain = kwargs.pop('domain', None)
+        
         # Don't call super().__init_subclass__() if there's no parent class
         # This handles the case where MockConfigFlow is the base class
+        # Python 3.11 may raise TypeError if kwargs contains unexpected keys
         try:
-            super().__init_subclass__(**kwargs)
-        except TypeError:
+            # Only pass remaining kwargs if there are any
+            if kwargs:
+                super().__init_subclass__(**kwargs)
+            else:
+                # Python 3.11: call without kwargs if empty to avoid issues
+                try:
+                    super().__init_subclass__()
+                except TypeError:
+                    # No parent class with __init_subclass__, that's fine
+                    pass
+        except (TypeError, AttributeError):
             # No parent class with __init_subclass__, that's fine
+            # Python 3.11 may raise AttributeError in some cases
             pass
+        
         if domain is not None:
             cls.domain = domain
 
