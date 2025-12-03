@@ -454,3 +454,103 @@ class TestGetCounterReadingsBatch:
         with pytest.raises(ValueError, match="unexpected response"):
             await client.get_counter_readings_batch([104437], "token", "cookie")
 
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_401_error(self, client, mock_session):
+        """Test that 401 error in batch request is raised (not retried at API level)."""
+        from aiohttp import RequestInfo
+        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+        call_count = 0
+
+        async def post_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise ClientResponseError(request_info, None, status=401)
+
+        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+
+        with pytest.raises(ClientResponseError) as exc_info:
+            await client.get_counter_readings_batch([104437], "token", "cookie")
+
+        assert exc_info.value.status == 401
+        assert call_count == 1  # API client doesn't retry 401, coordinator handles it
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_401_then_success_after_token_refresh(self, client, mock_session):
+        """Test batch request that fails with 401, then succeeds after token refresh.
+        
+        Note: This test simulates the coordinator-level retry pattern where:
+        1. Batch API call returns 401
+        2. Coordinator refreshes token
+        3. Batch API call retried with new token succeeds
+        """
+        from aiohttp import RequestInfo
+        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+        call_count = 0
+
+        async def post_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call with old token returns 401
+                raise ClientResponseError(request_info, None, status=401)
+            # Second call with new token succeeds
+            mock_response = AsyncMock()
+            mock_response.status = 200
+            mock_response.text = AsyncMock(
+                return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]'
+            )
+            mock_response.json = AsyncMock(
+                return_value=[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]
+            )
+            mock_response.raise_for_status = MagicMock()
+            return mock_response
+
+        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+
+        # Simulate coordinator-level retry pattern
+        from custom_components.cem_monitor.retry import is_401_error
+        
+        try:
+            result = await client.get_counter_readings_batch([104437], "old_token", "old_cookie")
+        except ClientResponseError as err:
+            if is_401_error(err):
+                # Coordinator would refresh token here, then retry
+                result = await client.get_counter_readings_batch([104437], "new_token", "new_cookie")
+            else:
+                raise
+
+        assert len(result) == 1
+        assert result[104437]["value"] == 123.45
+        assert call_count == 2  # Initial call + retry after token refresh
+
+    @pytest.mark.asyncio
+    async def test_get_counter_readings_batch_401_persists_after_refresh(self, client, mock_session):
+        """Test batch request that fails with 401 even after token refresh."""
+        from aiohttp import RequestInfo
+        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+        call_count = 0
+
+        async def post_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # Always returns 401
+            raise ClientResponseError(request_info, None, status=401)
+
+        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+
+        # Simulate coordinator-level retry pattern
+        from custom_components.cem_monitor.retry import is_401_error
+        
+        try:
+            result = await client.get_counter_readings_batch([104437], "old_token", "old_cookie")
+        except ClientResponseError as err:
+            if is_401_error(err):
+                # Coordinator would refresh token here, then retry
+                # But retry also fails with 401
+                with pytest.raises(ClientResponseError) as exc_info:
+                    await client.get_counter_readings_batch([104437], "new_token", "new_cookie")
+                assert exc_info.value.status == 401
+                assert call_count == 2  # Initial call + retry after token refresh
+            else:
+                raise
+
