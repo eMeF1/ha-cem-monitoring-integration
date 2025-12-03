@@ -52,13 +52,12 @@ sys.modules['homeassistant.helpers.event'].async_call_later = MagicMock
 class MockConfigFlow:
     """Mock ConfigFlow base class."""
     def __init__(self, *args, **kwargs):
-        # Don't call super() to avoid issues
+        # Initialize basic attributes
         self.hass = None
         self.flow_id = None
         self._current_entries = []
-        # Allow domain to be set via class variable
-        if hasattr(self.__class__, 'domain'):
-            pass
+        # Support domain parameter (used in class definition)
+        self.domain = getattr(self.__class__, 'domain', None)
     
     def _async_current_entries(self):
         """Return current entries."""
@@ -78,6 +77,13 @@ class MockConfigFlow:
     
     async def async_abort(self, reason):
         return {"type": "abort", "reason": reason}
+    
+    @classmethod
+    def __init_subclass__(cls, domain=None, **kwargs):
+        """Handle domain parameter in class definition."""
+        super().__init_subclass__(**kwargs)
+        if domain is not None:
+            cls.domain = domain
 
 class MockOptionsFlow:
     """Mock OptionsFlow base class."""
@@ -91,10 +97,12 @@ class MockOptionsFlow:
     async def async_create_entry(self, title, data):
         return {"type": "create_entry", "title": title, "data": data}
 
-sys.modules['homeassistant.config_entries'] = homeassistant_config_entries_mock
-sys.modules['homeassistant.config_entries'].ConfigEntry = MagicMock
-sys.modules['homeassistant.config_entries'].ConfigFlow = MockConfigFlow
-sys.modules['homeassistant.config_entries'].OptionsFlow = MockOptionsFlow
+# Set up config_entries module properly
+config_entries_module = ModuleType('homeassistant.config_entries')
+config_entries_module.ConfigEntry = MagicMock
+config_entries_module.ConfigFlow = MockConfigFlow
+config_entries_module.OptionsFlow = MockOptionsFlow
+sys.modules['homeassistant.config_entries'] = config_entries_module
 sys.modules['homeassistant.data_entry_flow'] = MagicMock()
 sys.modules['homeassistant.data_entry_flow'].FlowResult = dict
 sys.modules['homeassistant.components.sensor'] = MagicMock()
