@@ -182,10 +182,19 @@ class MockServerTimeoutError(Exception):
 class MockClientError(Exception):
     pass
 
+class MockClientTimeout:
+    """Mock ClientTimeout class."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+# Add all classes to aiohttp module (can be imported directly from aiohttp)
 aiohttp_module.ClientResponseError = MockClientResponseError
 aiohttp_module.RequestInfo = MockRequestInfo
 aiohttp_module.ClientSession = MagicMock()
-aiohttp_module.ClientTimeout = MagicMock()
+aiohttp_module.ClientTimeout = MockClientTimeout
+aiohttp_module.ClientError = MockClientError
+aiohttp_module.ClientConnectorError = MockClientConnectorError
+aiohttp_module.ServerTimeoutError = MockServerTimeoutError
 
 # Mock client_exceptions submodule
 client_exceptions_module = ModuleType('aiohttp.client_exceptions')
