@@ -1,3 +1,18 @@
+"""
+User info coordinator for CEM Monitoring Integration.
+
+This coordinator fetches account and user information using the CEM API endpoint id=9.
+
+Purpose:
+- Retrieves account metadata (company_id, customer_id, person_id)
+- Extracts user display information (display_name, company)
+- Provides login validity period information
+- Used for device naming and account-level sensor entities
+
+Update Frequency:
+- Every 12 hours (timedelta(hours=12))
+- Updates are triggered automatically by Home Assistant's coordinator mechanism
+"""
 from __future__ import annotations
 
 import logging
@@ -13,6 +28,7 @@ from .const import DOMAIN
 from .utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
+
 
 
 class CEMUserInfoCoordinator(CEMBaseCoordinator):

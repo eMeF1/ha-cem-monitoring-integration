@@ -1,3 +1,13 @@
+"""
+Base coordinator classes for CEM Monitoring Integration.
+
+This module provides the foundation for all coordinators in the integration:
+- CEMBaseCoordinator: Base class with standardized 401 error handling
+- CEMAuthCoordinator: Manages authentication tokens and cookies
+
+Update Frequencies:
+- CEMAuthCoordinator: Dynamic (refreshes ~5 minutes before token expiry, minimum 5 minutes)
+"""
 from __future__ import annotations
 
 import logging

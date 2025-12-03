@@ -149,6 +149,137 @@ For more details, see the public API site:
 
 ---
 
+## Architecture
+
+The integration uses a coordinator-based architecture following Home Assistant's best practices. Coordinators manage data fetching, caching, and updates for different aspects of the CEM API.
+
+### Coordinator Hierarchy
+
+```
+CEMAuthCoordinator (Base)
+├─ Purpose: Authentication & token management
+├─ Update Frequency: Dynamic (~5 min before expiry, min 5 min)
+├─ API Endpoint: id=4 (Login)
+└─ Provides: access_token, cookie, token expiry
+
+CEMBaseCoordinator (Base class)
+├─ Provides: 401 error handling, token refresh logic
+└─ Inherited by all data coordinators
+
+Data Coordinators (all inherit from CEMBaseCoordinator):
+│
+├─ CEMUserInfoCoordinator
+│  ├─ Purpose: Account/user information
+│  ├─ Update Frequency: 12 hours
+│  ├─ API Endpoint: id=9
+│  └─ Provides: company_id, display_name, login validity
+│
+├─ CEMObjectsCoordinator
+│  ├─ Purpose: Objects/sites list (mis_id)
+│  ├─ Update Frequency: 12 hours
+│  ├─ API Endpoint: id=23
+│  └─ Provides: mis_id, mis_name, mis_idp (parent relationships)
+│
+├─ CEMMetersCoordinator
+│  ├─ Purpose: Meters list (me_id)
+│  ├─ Update Frequency: 12 hours
+│  ├─ API Endpoint: id=108
+│  └─ Provides: me_id, mis_id, me_name, me_serial
+│
+├─ CEMMeterCountersCoordinator (one per meter)
+│  ├─ Purpose: Counters list for a specific meter
+│  ├─ Update Frequency: 12 hours
+│  ├─ API Endpoint: id=107&me_id=...
+│  └─ Provides: var_id, pot_id, counter metadata
+│
+└─ CEMCounterReadingCoordinator (one per var_id)
+   ├─ Purpose: Latest reading for a specific counter
+   ├─ Update Frequency: Manual (batch refresh, default 30 min)
+   ├─ API Endpoint: id=8&var_id=... (or batch POST id=8)
+   └─ Provides: value, timestamp_ms, timestamp_iso
+```
+
+### Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Integration Setup                        │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│              CEMAuthCoordinator (id=4)                       │
+│         Authenticates and provides token/cookie              │
+│         Update: Dynamic (before token expiry)                │
+└─────────────────────────────────────────────────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+        ▼                   ▼                   ▼
+┌──────────────┐   ┌──────────────┐   ┌──────────────┐
+│ UserInfo     │   │ Objects      │   │ Meters       │
+│ (id=9)       │   │ (id=23)      │   │ (id=108)     │
+│ 12h interval │   │ 12h interval │   │ 12h interval │
+└──────────────┘   └──────────────┘   └──────────────┘
+        │                   │                   │
+        │                   │                   ▼
+        │                   │         ┌─────────────────────┐
+        │                   │         │ MeterCounters       │
+        │                   │         │ (id=107, per me_id) │
+        │                   │         │ 12h interval        │
+        │                   │         └─────────────────────┘
+        │                   │                   │
+        │                   │                   ▼
+        │                   │         ┌─────────────────────┐
+        │                   │         │ CounterReading      │
+        │                   │         │ (id=8, per var_id)  │
+        │                   │         │ Batch refresh       │
+        │                   │         │ (default: 30 min)   │
+        │                   │         └─────────────────────┘
+        │                   │                   │
+        └───────────────────┴───────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Sensor Entities                           │
+│  - CEMApiStatusSensor (uses CEMAuthCoordinator)             │
+│  - CEMAccountSensor (uses CEMUserInfoCoordinator)           │
+│  - CEMCounterSensor (uses CEMCounterReadingCoordinator)    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Update Strategy
+
+1. **Authentication**: `CEMAuthCoordinator` refreshes tokens automatically before expiry (minimum 5 minutes between refreshes)
+
+2. **Metadata Coordinators** (UserInfo, Objects, Meters, MeterCounters):
+   - Update every 12 hours automatically
+   - Used for discovery and setup
+   - Changes infrequently, so 12-hour interval is appropriate
+
+3. **Counter Readings**:
+   - No automatic periodic updates at coordinator level
+   - Batch refresh mechanism in `__init__.py`:
+     - Collects all `var_id` values
+     - Uses batch API (POST id=8) when possible
+     - Falls back to individual requests if batch fails
+     - Default interval: 30 minutes (configurable via integration options)
+     - Range: 1-1440 minutes
+
+4. **Error Handling**:
+   - All coordinators inherit 401 error handling from `CEMBaseCoordinator`
+   - On 401: automatically refresh token and retry once
+   - Prevents stale token issues
+
+### Key Design Decisions
+
+- **Shared Counter Readings**: One `CEMCounterReadingCoordinator` per `var_id` across all meters (counters can be shared)
+- **Batch Updates**: Counter readings use batch API to minimize API calls
+- **Lazy Loading**: Counter reading coordinators are created only for selected counters
+- **Token Management**: Centralized in `CEMAuthCoordinator`, all other coordinators depend on it
+
+---
+
 ## Installation
 
 ### Via HACS (recommended)

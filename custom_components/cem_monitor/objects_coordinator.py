@@ -1,3 +1,19 @@
+"""
+Objects coordinator for CEM Monitoring Integration.
+
+This coordinator fetches the list of objects (sites/places) associated with the account
+using the CEM API endpoint id=23.
+
+Purpose:
+- Retrieves all objects (mis_id) available for the authenticated account
+- Extracts object metadata (mis_id, mis_name, mis_idp for parent relationships)
+- Used during integration setup to organize meters and counters by location
+- Provides object information for device hierarchy and entity naming
+
+Update Frequency:
+- Every 12 hours (timedelta(hours=12))
+- Updates are triggered automatically by Home Assistant's coordinator mechanism
+"""
 from __future__ import annotations
 
 import logging

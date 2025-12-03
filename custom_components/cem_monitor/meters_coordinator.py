@@ -1,3 +1,19 @@
+"""
+Meters coordinator for CEM Monitoring Integration.
+
+This coordinator fetches the list of all meters associated with the account
+using the CEM API endpoint id=108.
+
+Purpose:
+- Retrieves all meters (me_id) available for the authenticated account
+- Extracts meter metadata (me_id, mis_id, me_name)
+- Used during integration setup to discover available meters
+- Provides meter information for hierarchical counter selection
+
+Update Frequency:
+- Every 12 hours (timedelta(hours=12))
+- Updates are triggered automatically by Home Assistant's coordinator mechanism
+"""
 from __future__ import annotations
 
 import logging

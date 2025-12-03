@@ -1,3 +1,19 @@
+"""
+Meter counters coordinator for CEM Monitoring Integration.
+
+This coordinator fetches all counters associated with a specific meter (me_id)
+using the CEM API endpoint id=107.
+
+Purpose:
+- Retrieves the list of counters (var_id) for a given meter
+- Extracts counter metadata (name, unit, timestamp)
+- Identifies water-related counters for filtering
+- Provides raw counter data for sensor entity setup
+
+Update Frequency:
+- Every 12 hours (timedelta(hours=12))
+- Updates are triggered automatically by Home Assistant's coordinator mechanism
+"""
 from __future__ import annotations
 
 import logging

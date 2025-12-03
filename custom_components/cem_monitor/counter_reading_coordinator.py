@@ -1,3 +1,19 @@
+"""
+Counter reading coordinator for CEM Monitoring Integration.
+
+This coordinator fetches the latest reading value for a specific counter (var_id)
+using the CEM API endpoint id=8.
+
+Purpose:
+- Retrieves the most recent counter reading (value and timestamp) for a given var_id
+- Used by sensor entities to display current counter values
+- Supports batch updates via the main integration refresh mechanism
+
+Update Frequency:
+- Manual updates only (no automatic periodic refresh)
+- Updates are triggered by the integration's batch refresh mechanism
+- Default batch refresh interval: 30 minutes (configurable via integration options)
+"""
 from __future__ import annotations
 
 import logging
