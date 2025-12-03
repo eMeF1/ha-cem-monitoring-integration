@@ -8,21 +8,46 @@ from aiohttp.client_exceptions import ServerTimeoutError
 from custom_components.cem_monitor.api import CEMClient, AuthResult
 
 
+class AsyncContextManager:
+    """Async context manager that can be configured with a response."""
+    def __init__(self):
+        self._response = None
+        self._side_effect = None
+    
+    def set_response(self, response):
+        """Set the response that will be returned by __aenter__."""
+        self._response = response
+    
+    def set_side_effect(self, side_effect):
+        """Set a side effect function for __aenter__."""
+        self._side_effect = side_effect
+    
+    async def __aenter__(self):
+        if self._side_effect is not None:
+            return await self._side_effect()
+        return self._response
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        return None
+
+
 @pytest.fixture
 def mock_session():
     """Create a mock aiohttp session."""
     session = AsyncMock(spec=ClientSession)
     
-    # Create a factory function that returns a new async context manager each time
-    def create_async_context_manager():
-        context = AsyncMock()
-        context.__aenter__ = AsyncMock()
-        context.__aexit__ = AsyncMock(return_value=None)
-        return context
+    # Create context managers that can be configured
+    post_context = AsyncContextManager()
+    get_context = AsyncContextManager()
     
-    # Make post and get return new context managers each time
-    session.post = MagicMock(side_effect=lambda *args, **kwargs: create_async_context_manager())
-    session.get = MagicMock(side_effect=lambda *args, **kwargs: create_async_context_manager())
+    # Make post and get return the context managers
+    session.post = MagicMock(return_value=post_context)
+    session.get = MagicMock(return_value=get_context)
+    
+    # Store references so tests can configure them
+    session._post_context = post_context
+    session._get_context = get_context
+    
     return session
 
 
@@ -45,7 +70,7 @@ class TestAuthenticate:
         mock_response.json = AsyncMock(return_value={"access_token": "token123", "valid_to": 1234567890})
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         result = await client.authenticate("user", "pass")
 
@@ -72,7 +97,7 @@ class TestAuthenticate:
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
-        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+        mock_session._post_context.set_side_effect(post_side_effect)
 
         result = await client.authenticate("user", "pass")
 
@@ -91,7 +116,7 @@ class TestAuthenticate:
             request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
             raise ClientResponseError(request_info, None, status=401)
 
-        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+        mock_session._post_context.set_side_effect(post_side_effect)
 
         with pytest.raises(ClientResponseError):
             await client.authenticate("user", "pass")
@@ -111,7 +136,7 @@ class TestGetUserInfo:
         mock_response.json = AsyncMock(return_value={"firma": "Test Co", "fir_id": 123})
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.get.return_value.__aenter__.return_value = mock_response
+        mock_session._get_context.set_response(mock_response)
 
         result = await client.get_user_info("token", "cookie")
 
@@ -135,7 +160,7 @@ class TestGetUserInfo:
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
-        mock_session.get.return_value.__aenter__.side_effect = get_side_effect
+        mock_session._get_context.set_side_effect(get_side_effect)
 
         result = await client.get_user_info("token", "cookie")
 
@@ -155,7 +180,7 @@ class TestGetObjects:
         mock_response.json = AsyncMock(return_value=[{"mis_id": 1, "mis_nazev": "Object 1"}])
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.get.return_value.__aenter__.return_value = mock_response
+        mock_session._get_context.set_response(mock_response)
 
         result = await client.get_objects("token", "cookie")
 
@@ -180,7 +205,7 @@ class TestGetObjects:
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
-        mock_session.get.return_value.__aenter__.side_effect = get_side_effect
+        mock_session._get_context.set_side_effect(get_side_effect)
 
         result = await client.get_objects("token", "cookie")
 
@@ -202,7 +227,7 @@ class TestGetCounterReading:
         )
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.get.return_value.__aenter__.return_value = mock_response
+        mock_session._get_context.set_response(mock_response)
 
         result = await client.get_counter_reading(123, "token", "cookie")
 
@@ -221,7 +246,7 @@ class TestGetCounterReading:
             request_info = RequestInfo(url="http://test.com", method="GET", headers={}, real_url="http://test.com")
             raise ClientResponseError(request_info, None, status=404)
 
-        mock_session.get.return_value.__aenter__.side_effect = get_side_effect
+        mock_session._get_context.set_side_effect(get_side_effect)
 
         with pytest.raises(ClientResponseError):
             await client.get_counter_reading(123, "token", "cookie")
@@ -248,7 +273,7 @@ class TestGetCounterReadingsBatch:
         )
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
 
@@ -276,7 +301,7 @@ class TestGetCounterReadingsBatch:
         )
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
 
@@ -295,7 +320,7 @@ class TestGetCounterReadingsBatch:
         mock_response.json = AsyncMock(return_value=[])
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         result = await client.get_counter_readings_batch([], "token", "cookie")
 
@@ -311,7 +336,7 @@ class TestGetCounterReadingsBatch:
         mock_response.json = AsyncMock(return_value=[])
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         with patch("custom_components.cem_monitor.api._LOGGER") as mock_logger:
             result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
@@ -345,7 +370,7 @@ class TestGetCounterReadingsBatch:
         )
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
 
@@ -370,7 +395,7 @@ class TestGetCounterReadingsBatch:
         )
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
 
@@ -398,7 +423,7 @@ class TestGetCounterReadingsBatch:
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
-        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+        mock_session._post_context.set_side_effect(post_side_effect)
 
         result = await client.get_counter_readings_batch([104437], "token", "cookie")
 
@@ -424,7 +449,7 @@ class TestGetCounterReadingsBatch:
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
-        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+        mock_session._post_context.set_side_effect(post_side_effect)
 
         result = await client.get_counter_readings_batch([104437], "token", "cookie")
 
@@ -444,7 +469,7 @@ class TestGetCounterReadingsBatch:
         )
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         result = await client.get_counter_readings_batch([104437], "token", "cookie")
 
@@ -461,7 +486,7 @@ class TestGetCounterReadingsBatch:
         mock_response.json = AsyncMock(return_value={"error": "invalid"})
         mock_response.raise_for_status = MagicMock()
 
-        mock_session.post.return_value.__aenter__.return_value = mock_response
+        mock_session._post_context.set_response(mock_response)
 
         with pytest.raises(ValueError, match="unexpected response"):
             await client.get_counter_readings_batch([104437], "token", "cookie")
@@ -478,7 +503,7 @@ class TestGetCounterReadingsBatch:
             call_count += 1
             raise ClientResponseError(request_info, None, status=401)
 
-        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+        mock_session._post_context.set_side_effect(post_side_effect)
 
         with pytest.raises(ClientResponseError) as exc_info:
             await client.get_counter_readings_batch([104437], "token", "cookie")
@@ -517,7 +542,7 @@ class TestGetCounterReadingsBatch:
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
-        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+        mock_session._post_context.set_side_effect(post_side_effect)
 
         # Simulate coordinator-level retry pattern
         from custom_components.cem_monitor.retry import is_401_error
@@ -548,7 +573,7 @@ class TestGetCounterReadingsBatch:
             # Always returns 401
             raise ClientResponseError(request_info, None, status=401)
 
-        mock_session.post.return_value.__aenter__.side_effect = post_side_effect
+        mock_session._post_context.set_side_effect(post_side_effect)
 
         # Simulate coordinator-level retry pattern
         from custom_components.cem_monitor.retry import is_401_error

@@ -52,6 +52,7 @@ sys.modules['homeassistant.helpers.event'].async_call_later = MagicMock
 class MockConfigFlow:
     """Mock ConfigFlow base class."""
     def __init__(self, *args, **kwargs):
+        # Don't call super() - we are the base class
         # Initialize basic attributes
         self.hass = None
         self.flow_id = None
@@ -63,25 +64,36 @@ class MockConfigFlow:
         """Return current entries."""
         return iter(self._current_entries)
     
-    def async_set_unique_id(self, unique_id):
+    async def async_set_unique_id(self, unique_id):
         pass
     
     def _abort_if_unique_id_configured(self):
         pass
     
-    async def async_show_form(self, step_id, data_schema=None, errors=None):
+    def async_show_form(self, step_id, data_schema=None, errors=None):
+        """Show form - synchronous method that returns dict (Home Assistant pattern)."""
         return {"type": "form", "step_id": step_id, "errors": errors or {}}
     
-    async def async_create_entry(self, title, data, options=None):
+    def async_create_entry(self, title, data, options=None):
+        """Create entry - synchronous method that returns dict (Home Assistant pattern)."""
         return {"type": "create_entry", "title": title, "data": data, "options": options or {}}
     
-    async def async_abort(self, reason):
+    def async_abort(self, reason):
+        """Abort flow - synchronous method that returns dict (Home Assistant pattern)."""
         return {"type": "abort", "reason": reason}
     
     @classmethod
-    def __init_subclass__(cls, domain=None, **kwargs):
+    def __init_subclass__(cls, **kwargs):
         """Handle domain parameter in class definition."""
-        super().__init_subclass__(**kwargs)
+        # Extract domain from kwargs (Python 3.6+ allows keyword arguments in class definition)
+        domain = kwargs.pop('domain', None)
+        # Don't call super().__init_subclass__() if there's no parent class
+        # This handles the case where MockConfigFlow is the base class
+        try:
+            super().__init_subclass__(**kwargs)
+        except TypeError:
+            # No parent class with __init_subclass__, that's fine
+            pass
         if domain is not None:
             cls.domain = domain
 
@@ -91,10 +103,12 @@ class MockOptionsFlow:
         # Don't call super() to avoid issues
         self._entry = entry
     
-    async def async_show_form(self, step_id, data_schema=None, errors=None):
+    def async_show_form(self, step_id, data_schema=None, errors=None):
+        """Show form - synchronous method that returns dict (Home Assistant pattern)."""
         return {"type": "form", "step_id": step_id, "errors": errors or {}}
     
-    async def async_create_entry(self, title, data):
+    def async_create_entry(self, title, data):
+        """Create entry - synchronous method that returns dict (Home Assistant pattern)."""
         return {"type": "create_entry", "title": title, "data": data}
 
 # Set up config_entries module properly
@@ -103,6 +117,8 @@ config_entries_module.ConfigEntry = MagicMock
 config_entries_module.ConfigFlow = MockConfigFlow
 config_entries_module.OptionsFlow = MockOptionsFlow
 sys.modules['homeassistant.config_entries'] = config_entries_module
+# Also set it on the homeassistant mock so 'from homeassistant import config_entries' works
+homeassistant_mock.config_entries = config_entries_module
 sys.modules['homeassistant.data_entry_flow'] = MagicMock()
 sys.modules['homeassistant.data_entry_flow'].FlowResult = dict
 sys.modules['homeassistant.components.sensor'] = MagicMock()
