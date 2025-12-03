@@ -309,6 +309,15 @@ class CEMClient:
                 if not isinstance(readings, list):
                     raise ValueError(f"id=8 batch unexpected response: {payload!r}")
 
+                # Handle empty batch responses
+                if not readings and var_ids:
+                    _LOGGER.warning(
+                        "CEM counter batch: API returned empty list for %d requested var_ids: %s",
+                        len(var_ids),
+                        sorted(var_ids),
+                    )
+                    return {}
+
                 # Build result dictionary mapping var_id -> reading data
                 result: Dict[int, Dict[str, Any]] = {}
                 for reading in readings:

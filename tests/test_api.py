@@ -301,10 +301,21 @@ class TestGetCounterReadingsBatch:
 
         mock_session.post.return_value.__aenter__.return_value = mock_response
 
-        result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
+        with patch("custom_components.cem_monitor.api._LOGGER") as mock_logger:
+            result = await client.get_counter_readings_batch([104437, 102496], "token", "cookie")
 
-        assert len(result) == 0
-        assert result == {}
+            assert len(result) == 0
+            assert result == {}
+            
+            # Verify warning is logged for empty response with requested var_ids
+            mock_logger.warning.assert_called_once()
+            # Check the format string and arguments
+            warning_format = mock_logger.warning.call_args[0][0]
+            warning_args = mock_logger.warning.call_args[0][1:]
+            assert "API returned empty list" in warning_format
+            assert len(warning_args) == 2
+            assert warning_args[0] == 2  # number of var_ids
+            assert isinstance(warning_args[1], list)  # sorted var_ids list
 
     @pytest.mark.asyncio
     async def test_get_counter_readings_batch_missing_fields(self, client, mock_session):
