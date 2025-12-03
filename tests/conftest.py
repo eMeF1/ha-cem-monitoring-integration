@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures for CEM Monitor tests."""
 import sys
 from pathlib import Path
+from types import ModuleType
 from unittest.mock import MagicMock
 
 # Mock Home Assistant modules BEFORE importing any custom components
@@ -62,8 +63,12 @@ sys.modules['homeassistant.helpers'] = MagicMock()
 sys.modules['homeassistant.helpers'].device_registry = MagicMock()
 sys.modules['homeassistant.helpers.device_registry'] = MagicMock()
 sys.modules['homeassistant.helpers.device_registry'].async_get = MagicMock()
-sys.modules['homeassistant.helpers.config_validation'] = MagicMock()
-sys.modules['homeassistant.helpers.config_validation'].cv = MagicMock()
+# Mock config_validation with cv.multi_select
+config_validation_mock = MagicMock()
+multi_select_mock = MagicMock()
+config_validation_mock.multi_select = multi_select_mock
+sys.modules['homeassistant.helpers.config_validation'] = config_validation_mock
+sys.modules['homeassistant.helpers.config_validation'].cv = config_validation_mock
 
 # Mock Store helper for caching
 homeassistant_helpers_storage_mock = MagicMock()
@@ -92,6 +97,101 @@ class MockStore:
 
 sys.modules['homeassistant.helpers.storage'] = homeassistant_helpers_storage_mock
 sys.modules['homeassistant.helpers.storage'].Store = MockStore
+
+# Mock voluptuous (used by config_flow)
+# Create a proper module-like object
+class VoluptuousModule(ModuleType):
+    """Mock voluptuous module."""
+    pass
+
+voluptuous_module = VoluptuousModule('voluptuous')
+
+# Create mock Schema class that can be instantiated and called
+class MockSchema:
+    def __init__(self, schema_dict=None):
+        self._schema = schema_dict or {}
+    def __call__(self, data=None):
+        return data or {}
+    def __getitem__(self, key):
+        return self._schema.get(key)
+
+# Create mock decorators/functions
+class MockRequired:
+    def __init__(self, *args, **kwargs):
+        pass
+
+class MockOptional:
+    def __init__(self, *args, **kwargs):
+        pass
+
+class MockAll:
+    def __init__(self, *args, **kwargs):
+        pass
+
+class MockLength:
+    def __init__(self, *args, **kwargs):
+        pass
+
+class MockCoerce:
+    def __init__(self, *args, **kwargs):
+        pass
+
+class MockRange:
+    def __init__(self, *args, **kwargs):
+        pass
+
+voluptuous_module.Schema = MockSchema
+voluptuous_module.Required = MockRequired
+voluptuous_module.Optional = MockOptional
+voluptuous_module.All = MockAll
+voluptuous_module.Length = MockLength
+voluptuous_module.Coerce = MockCoerce
+voluptuous_module.Range = MockRange
+
+sys.modules['voluptuous'] = voluptuous_module
+
+# Mock aiohttp (used by config_flow and api)
+aiohttp_module = ModuleType('aiohttp')
+
+# Create proper exception classes for aiohttp
+class MockClientResponseError(Exception):
+    def __init__(self, request_info=None, history=None, status=None, **kwargs):
+        self.request_info = request_info
+        self.history = history
+        self.status = status
+        super().__init__(**kwargs)
+
+class MockRequestInfo:
+    def __init__(self, url=None, method=None, headers=None, real_url=None):
+        self.url = url
+        self.method = method
+        self.headers = headers or {}
+        self.real_url = real_url or url
+
+class MockClientConnectorError(Exception):
+    pass
+
+class MockServerTimeoutError(Exception):
+    pass
+
+class MockClientError(Exception):
+    pass
+
+aiohttp_module.ClientResponseError = MockClientResponseError
+aiohttp_module.RequestInfo = MockRequestInfo
+aiohttp_module.ClientSession = MagicMock()
+aiohttp_module.ClientTimeout = MagicMock()
+
+# Mock client_exceptions submodule
+client_exceptions_module = ModuleType('aiohttp.client_exceptions')
+client_exceptions_module.ClientConnectorError = MockClientConnectorError
+client_exceptions_module.ServerTimeoutError = MockServerTimeoutError
+client_exceptions_module.ClientError = MockClientError
+
+aiohttp_module.client_exceptions = client_exceptions_module
+
+sys.modules['aiohttp'] = aiohttp_module
+sys.modules['aiohttp.client_exceptions'] = client_exceptions_module
 
 # Add custom_components to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
