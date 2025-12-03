@@ -31,6 +31,68 @@ This project is community‑maintained and **not affiliated with CEM or Softlink
 
 ---
 
+## Installation
+
+### Via HACS (recommended)
+
+1. In Home Assistant, open **HACS → Integrations → Custom repositories**.
+2. Add this repository URL as a **Custom repository** (category: *Integration*).
+3. Search for **CEM Monitoring Integration** in HACS and install it.
+4. Restart Home Assistant.
+
+[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](
+  https://my.home-assistant.io/redirect/hacs_repository/?owner=eMeF1&repository=ha-cem-monitoring-integration&category=integration
+)
+
+### Manual installation
+
+1. Download the latest release from GitHub.
+2. Copy the folder:
+
+   ```text
+   custom_components/cem_monitor
+   ```
+
+   into your Home Assistant `config/custom_components` directory.
+
+3. Restart Home Assistant.
+
+---
+
+## Configuration
+
+### Initial Setup
+
+1. Go to **Settings → Devices & Services → Add Integration**.
+2. Search for **CEM Monitoring Integration**.
+3. Enter your CEM credentials (username and password).
+4. After authentication, you'll be presented with a hierarchical counter selection screen showing:
+   - Objects (places) with their `mis_id`
+   - Meters within each object with serial numbers and counter types
+   - Individual counters (`var_id`) with their names
+5. Select the counters you want to expose as sensors (you can select multiple).
+6. Complete the setup.
+
+Multiple CEM accounts are supported — each account is configured separately.
+
+### Reconfiguration (Options)
+
+To change your counter selection or update interval after initial setup:
+
+1. Go to **Settings → Devices & Services**.
+2. Find your **CEM Monitoring Integration** entry.
+3. Click **Configure** (or the three-dot menu → **Configure**).
+4. You can:
+   - Select/deselect counters — modify which counters are exposed as sensors
+   - Adjust update interval — set how often counter readings are refreshed
+     - Default: 30 minutes
+     - Range: 1–1440 minutes (1 minute to 24 hours)
+     - Lower intervals mean more frequent updates but higher API usage
+
+Changes take effect after saving and the integration automatically reloads.
+
+---
+
 ## Devices & Entities
 
 ### CEM Account `<DISPLAY_NAME>`
@@ -103,47 +165,9 @@ CEM Object <OBJECT_NAME>
 
 ## How the integration talks to CEM
 
-The integration performs a small set of **read‑only** HTTP calls against the CEM API.
+The integration performs **read‑only** HTTP calls against the CEM API. All API endpoints and their usage are detailed in the [Architecture](#architecture) section below. The integration is designed to keep API load minimal by using batch requests and caching metadata.
 
-### Main endpoints
-
-1. **id=4** – Login  
-2. **id=9** – User info  
-3. **id=23** – Objects (places) list  
-4. **id=108** – Meters per object  
-   - Returns `me_id`, `met_id`, `me_serial`, `mis_id`, …
-5. **id=107** – Counters per meter  
-   - Returns `var_id`, `me_id`, `pot_id`, last value and timestamp, …
-6. **id=8** – Last counter values  
-   - Returns latest readings for specific counters (`var_id`)
-7. **id=11** – Counter value types  
-   - Fetched once per account setup with parameter `cis=50`
-   - Maps `pot_type` (via `cik_fk`) → `cik_nazev` (counter value type name)
-   - Provides human-readable names for counter value types (e.g., "Přírustková", "Absolutní", "Výčtová", "Absolutní součtová")
-8. **id=222** – Global counter types / units  
-   - Fetched once per account setup to build a global mapping
-   - Maps `pot_id` → unit and type metadata:
-     - `jed_zkr` (unit abbreviation, e.g. `m³`)
-     - `jed_nazev` (unit name, e.g. `metr krychlový`)
-     - `pot_type` (counter type: 0=instantaneous, 1=cumulative/total, 2=state, 3=derived)
-     - `lt_key` (label key for counter type)
-   - Used to filter counters: only types 0, 1, and 3 are exposed as sensors (type 2 state counters like door/contact sensors are excluded)
-
-The integration uses this chain:
-
-```text
-ID 23: Places (mis_id, mis_nazev)
-   └─ ID 108: Meters (me_id, me_serial, met_id, mis_id)
-        └─ ID 107 (per me_id): Counters (var_id, pot_id)
-             └─ ID 222 (global, once): Unit & type mapping (jed_zkr, jed_nazev, pot_type, lt_key)
-                  └─ ID 11 (global, once, cis=50): Counter value type names (cik_fk → cik_nazev)
-                       └─ Filter by pot_type (exclude type 2)
-                            └─ ID 8: Last values for selected var_ids
-```
-
-All calls are **read‑only** and designed to keep API load minimal. The integration uses endpoints id=222 and id=11 to fetch all counter type definitions and value type names once during setup, then filters counters based on `pot_type` before exposing them as sensors.
-
-For more details, see the public API site:
+For more details about the CEM API, see the public API documentation:
 
 - https://cemapi.unimonitor.eu/
 
@@ -198,6 +222,73 @@ Data Coordinators (all inherit from CEMBaseCoordinator):
    ├─ API Endpoint: id=8&var_id=... (or batch POST id=8)
    └─ Provides: value, timestamp_ms, timestamp_iso
 ```
+
+### API Endpoints
+
+The integration uses the following CEM API endpoints (all **read‑only**):
+
+1. **id=4** – Login  
+   - Used by: `CEMAuthCoordinator`
+   - Returns: `access_token`, `valid_to`, sets `CEMAPI` cookie
+   - Called: During authentication and token refresh
+
+2. **id=9** – User info  
+   - Used by: `CEMUserInfoCoordinator`
+   - Returns: `company_id`, `customer_id`, `person_id`, `company_name`, `display_name`, `login_valid_from`, `login_valid_to`
+   - Called: Every 12 hours
+
+3. **id=23** – Objects (places) list  
+   - Used by: `CEMObjectsCoordinator`
+   - Returns: List of objects with `mis_id`, `mis_nazev`, `mis_idp` (parent relationships)
+   - Called: Every 12 hours
+
+4. **id=108** – Meters per object  
+   - Used by: `CEMMetersCoordinator`
+   - Returns: List of meters with `me_id`, `met_id`, `me_serial`, `mis_id`, `me_name`
+   - Called: Every 12 hours
+
+5. **id=107** – Counters per meter  
+   - Used by: `CEMMeterCountersCoordinator` (one per meter)
+   - Parameters: `me_id` (meter ID)
+   - Returns: List of counters with `var_id`, `me_id`, `pot_id`, counter metadata
+   - Called: Every 12 hours (per meter)
+
+6. **id=8** – Last counter values  
+   - Used by: `CEMCounterReadingCoordinator` (one per var_id)
+   - Parameters: `var_id` (counter ID) or batch POST with array of `var_id` objects
+   - Returns: Latest reading with `value`, `timestamp` (ms), `var_id`
+   - Called: Batch refresh at configured interval (default: 30 minutes)
+
+7. **id=11** – Counter value types  
+   - Used by: Setup/initialization (not a coordinator)
+   - Parameters: `cis=50`
+   - Returns: Mapping of `pot_type` (via `cik_fk`) → `cik_nazev` (human-readable counter value type names)
+   - Examples: "Přírustková", "Absolutní", "Výčtová", "Absolutní součtová"
+   - Called: Once per account setup
+
+8. **id=222** – Global counter types / units  
+   - Used by: Setup/initialization (not a coordinator)
+   - Returns: Global mapping of `pot_id` → unit and type metadata:
+     - `jed_zkr` (unit abbreviation, e.g. `m³`)
+     - `jed_nazev` (unit name, e.g. `metr krychlový`)
+     - `pot_type` (counter type: 0=instantaneous, 1=cumulative/total, 2=state, 3=derived)
+     - `lt_key` (label key for counter type)
+   - Used to filter counters: only types 0, 1, and 3 are exposed as sensors (type 2 state counters like door/contact sensors are excluded)
+   - Called: Once per account setup
+
+**Call Chain During Setup:**
+
+```text
+ID 23: Places (mis_id, mis_nazev)
+   └─ ID 108: Meters (me_id, me_serial, met_id, mis_id)
+        └─ ID 107 (per me_id): Counters (var_id, pot_id)
+             └─ ID 222 (global, once): Unit & type mapping (jed_zkr, jed_nazev, pot_type, lt_key)
+                  └─ ID 11 (global, once, cis=50): Counter value type names (cik_fk → cik_nazev)
+                       └─ Filter by pot_type (exclude type 2)
+                            └─ ID 8: Last values for selected var_ids
+```
+
+All calls are designed to keep API load minimal. The integration uses endpoints id=222 and id=11 to fetch all counter type definitions and value type names once during setup, then filters counters based on `pot_type` before exposing them as sensors.
 
 ### Data Flow
 
@@ -277,68 +368,6 @@ Data Coordinators (all inherit from CEMBaseCoordinator):
 - **Batch Updates**: Counter readings use batch API to minimize API calls
 - **Lazy Loading**: Counter reading coordinators are created only for selected counters
 - **Token Management**: Centralized in `CEMAuthCoordinator`, all other coordinators depend on it
-
----
-
-## Installation
-
-### Via HACS (recommended)
-
-1. In Home Assistant, open **HACS → Integrations → Custom repositories**.
-2. Add this repository URL as a **Custom repository** (category: *Integration*).
-3. Search for **CEM Monitoring Integration** in HACS and install it.
-4. Restart Home Assistant.
-
-[![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](
-  https://my.home-assistant.io/redirect/hacs_repository/?owner=eMeF1&repository=ha-cem-monitoring-integration&category=integration
-)
-
-### Manual installation
-
-1. Download the latest release from GitHub.
-2. Copy the folder:
-
-   ```text
-   custom_components/cem_monitor
-   ```
-
-   into your Home Assistant `config/custom_components` directory.
-
-3. Restart Home Assistant.
-
----
-
-## Configuration
-
-### Initial Setup
-
-1. Go to **Settings → Devices & Services → Add Integration**.
-2. Search for **CEM Monitoring Integration**.
-3. Enter your CEM credentials (username and password).
-4. After authentication, you'll be presented with a hierarchical counter selection screen showing:
-   - Objects (places) with their `mis_id`
-   - Meters within each object with serial numbers and counter types
-   - Individual counters (`var_id`) with their names
-5. Select the counters you want to expose as sensors (you can select multiple).
-6. Complete the setup.
-
-Multiple CEM accounts are supported — each account is configured separately.
-
-### Reconfiguration (Options)
-
-To change your counter selection or update interval after initial setup:
-
-1. Go to **Settings → Devices & Services**.
-2. Find your **CEM Monitoring Integration** entry.
-3. Click **Configure** (or the three-dot menu → **Configure**).
-4. You can:
-   - Select/deselect counters — modify which counters are exposed as sensors
-   - Adjust update interval — set how often counter readings are refreshed
-     - Default: 30 minutes
-     - Range: 1–1440 minutes (1 minute to 24 hours)
-     - Lower intervals mean more frequent updates but higher API usage
-
-Changes take effect after saving and the integration automatically reloads.
 
 ---
 
