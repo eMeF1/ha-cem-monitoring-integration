@@ -25,6 +25,11 @@ class MockHomeAssistant:
 
 sys.modules['homeassistant.core'] = homeassistant_core_mock
 sys.modules['homeassistant.core'].HomeAssistant = MockHomeAssistant
+# Mock callback decorator (used by config_flow)
+def mock_callback(func):
+    """Mock callback decorator - just returns the function unchanged."""
+    return func
+sys.modules['homeassistant.core'].callback = mock_callback
 sys.modules['homeassistant.helpers'] = homeassistant_helpers_mock
 # Create a mock class that supports subscriptable type hints
 class MockDataUpdateCoordinator:
