@@ -59,7 +59,7 @@ class TestCEMConfigFlow:
     """Test CEMConfigFlow edge cases."""
 
     @pytest.mark.asyncio
-    async def test_empty_counter_selection(self, mock_hass):
+    async def test_empty_counter_selection(self, mock_hass, mock_auth_result):
         """Test that selecting no counters shows error."""
         flow = CEMConfigFlow()
         flow.hass = mock_hass
@@ -70,7 +70,7 @@ class TestCEMConfigFlow:
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
             CONF_USERNAME: "test_user",
             CONF_PASSWORD: "test_pass",
-            "auth_result": mock_auth_result(),
+            "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
         
@@ -100,7 +100,7 @@ class TestCEMConfigFlow:
             assert result["errors"]["base"] == "no_counters_selected"
 
     @pytest.mark.asyncio
-    async def test_invalid_counter_selection(self, mock_hass):
+    async def test_invalid_counter_selection(self, mock_hass, mock_auth_result):
         """Test that invalid counter selection shows error."""
         flow = CEMConfigFlow()
         flow.hass = mock_hass
@@ -111,7 +111,7 @@ class TestCEMConfigFlow:
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
             CONF_USERNAME: "test_user",
             CONF_PASSWORD: "test_pass",
-            "auth_result": mock_auth_result(),
+            "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
         
@@ -156,7 +156,7 @@ class TestCEMConfigFlow:
         assert result["reason"] == "no_flow_data"
 
     @pytest.mark.asyncio
-    async def test_tree_fetch_failure(self, mock_hass):
+    async def test_tree_fetch_failure(self, mock_hass, mock_auth_result):
         """Test error handling when object tree fetch fails."""
         flow = CEMConfigFlow()
         flow.hass = mock_hass
@@ -167,7 +167,7 @@ class TestCEMConfigFlow:
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
             CONF_USERNAME: "test_user",
             CONF_PASSWORD: "test_pass",
-            "auth_result": mock_auth_result(),
+            "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
         
@@ -183,7 +183,7 @@ class TestCEMConfigFlow:
             assert result["errors"]["base"] == "fetch_failed"
 
     @pytest.mark.asyncio
-    async def test_no_counters_available(self, mock_hass):
+    async def test_no_counters_available(self, mock_hass, mock_auth_result):
         """Test error when no counters are available."""
         flow = CEMConfigFlow()
         flow.hass = mock_hass
@@ -194,7 +194,7 @@ class TestCEMConfigFlow:
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
             CONF_USERNAME: "test_user",
             CONF_PASSWORD: "test_pass",
-            "auth_result": mock_auth_result(),
+            "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
         
@@ -214,7 +214,7 @@ class TestCEMOptionsFlow:
     """Test CEMOptionsFlow edge cases."""
 
     @pytest.mark.asyncio
-    async def test_invalid_interval_below_minimum(self, mock_hass, mock_entry):
+    async def test_invalid_interval_below_minimum(self, mock_hass, mock_entry, mock_auth_result):
         """Test that interval below minimum shows error."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -228,7 +228,7 @@ class TestCEMOptionsFlow:
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            mock_client.authenticate = AsyncMock(return_value=mock_auth_result())
+            mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
             mock_fetch.return_value = {
                 1: {
                     "mis_name": "Object 1",
@@ -261,7 +261,7 @@ class TestCEMOptionsFlow:
             assert result["errors"][CONF_COUNTER_UPDATE_INTERVAL_MINUTES] == "interval_range"
 
     @pytest.mark.asyncio
-    async def test_invalid_interval_above_maximum(self, mock_hass, mock_entry):
+    async def test_invalid_interval_above_maximum(self, mock_hass, mock_entry, mock_auth_result):
         """Test that interval above maximum shows error."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -275,7 +275,7 @@ class TestCEMOptionsFlow:
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            mock_client.authenticate = AsyncMock(return_value=mock_auth_result())
+            mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
             mock_fetch.return_value = {
                 1: {
                     "mis_name": "Object 1",
@@ -308,7 +308,7 @@ class TestCEMOptionsFlow:
             assert result["errors"][CONF_COUNTER_UPDATE_INTERVAL_MINUTES] == "interval_range"
 
     @pytest.mark.asyncio
-    async def test_invalid_interval_non_integer(self, mock_hass, mock_entry):
+    async def test_invalid_interval_non_integer(self, mock_hass, mock_entry, mock_auth_result):
         """Test that non-integer interval shows error."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -322,7 +322,7 @@ class TestCEMOptionsFlow:
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            mock_client.authenticate = AsyncMock(return_value=mock_auth_result())
+            mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
             mock_fetch.return_value = {
                 1: {
                     "mis_name": "Object 1",
@@ -355,7 +355,7 @@ class TestCEMOptionsFlow:
             assert result["errors"][CONF_COUNTER_UPDATE_INTERVAL_MINUTES] == "invalid_interval"
 
     @pytest.mark.asyncio
-    async def test_invalid_interval_none(self, mock_hass, mock_entry):
+    async def test_invalid_interval_none(self, mock_hass, mock_entry, mock_auth_result):
         """Test that None interval is handled."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -369,7 +369,7 @@ class TestCEMOptionsFlow:
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            mock_client.authenticate = AsyncMock(return_value=mock_auth_result())
+            mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
             mock_fetch.return_value = {
                 1: {
                     "mis_name": "Object 1",
@@ -400,7 +400,7 @@ class TestCEMOptionsFlow:
             assert result["data"][CONF_COUNTER_UPDATE_INTERVAL_MINUTES] == DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
 
     @pytest.mark.asyncio
-    async def test_auth_failure_401_during_options_flow(self, mock_hass, mock_entry):
+    async def test_auth_failure_401_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
         """Test 401 error during options flow authentication."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -428,7 +428,7 @@ class TestCEMOptionsFlow:
             assert result["errors"]["base"] == "invalid_auth"
 
     @pytest.mark.asyncio
-    async def test_auth_failure_403_during_options_flow(self, mock_hass, mock_entry):
+    async def test_auth_failure_403_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
         """Test 403 error during options flow authentication."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -474,7 +474,7 @@ class TestCEMOptionsFlow:
         assert result["errors"]["base"] == "missing_credentials"
 
     @pytest.mark.asyncio
-    async def test_tree_fetch_failure_during_options_flow(self, mock_hass, mock_entry):
+    async def test_tree_fetch_failure_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
         """Test tree fetch failure during options flow."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -488,7 +488,7 @@ class TestCEMOptionsFlow:
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            mock_client.authenticate = AsyncMock(return_value=mock_auth_result())
+            mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
             mock_fetch.side_effect = Exception("Tree fetch failed")
             
             result = await flow.async_step_init()
@@ -499,7 +499,7 @@ class TestCEMOptionsFlow:
             assert result["errors"]["base"] == "fetch_failed"
 
     @pytest.mark.asyncio
-    async def test_invalid_counter_selection_during_options_flow(self, mock_hass, mock_entry):
+    async def test_invalid_counter_selection_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
         """Test invalid counter selection during options flow."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
@@ -513,7 +513,7 @@ class TestCEMOptionsFlow:
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            mock_client.authenticate = AsyncMock(return_value=mock_auth_result())
+            mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
             mock_fetch.return_value = {
                 1: {
                     "mis_name": "Object 1",

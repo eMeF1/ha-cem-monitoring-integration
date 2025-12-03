@@ -11,7 +11,10 @@ from custom_components.cem_monitor.api import CEMClient, AuthResult
 @pytest.fixture
 def mock_session():
     """Create a mock aiohttp session."""
-    return AsyncMock(spec=ClientSession)
+    session = AsyncMock(spec=ClientSession)
+    session.post = AsyncMock()
+    session.get = AsyncMock()
+    return session
 
 
 @pytest.fixture
