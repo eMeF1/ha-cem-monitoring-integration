@@ -52,9 +52,13 @@ sys.modules['homeassistant.helpers.event'].async_call_later = MagicMock
 class MockConfigFlow:
     """Mock ConfigFlow base class."""
     def __init__(self, *args, **kwargs):
+        # Don't call super() to avoid issues
         self.hass = None
         self.flow_id = None
         self._current_entries = []
+        # Allow domain to be set via class variable
+        if hasattr(self.__class__, 'domain'):
+            pass
     
     def _async_current_entries(self):
         """Return current entries."""
@@ -66,24 +70,25 @@ class MockConfigFlow:
     def _abort_if_unique_id_configured(self):
         pass
     
-    def async_show_form(self, step_id, data_schema=None, errors=None):
+    async def async_show_form(self, step_id, data_schema=None, errors=None):
         return {"type": "form", "step_id": step_id, "errors": errors or {}}
     
-    def async_create_entry(self, title, data, options=None):
+    async def async_create_entry(self, title, data, options=None):
         return {"type": "create_entry", "title": title, "data": data, "options": options or {}}
     
-    def async_abort(self, reason):
+    async def async_abort(self, reason):
         return {"type": "abort", "reason": reason}
 
 class MockOptionsFlow:
     """Mock OptionsFlow base class."""
     def __init__(self, entry):
+        # Don't call super() to avoid issues
         self._entry = entry
     
-    def async_show_form(self, step_id, data_schema=None, errors=None):
+    async def async_show_form(self, step_id, data_schema=None, errors=None):
         return {"type": "form", "step_id": step_id, "errors": errors or {}}
     
-    def async_create_entry(self, title, data):
+    async def async_create_entry(self, title, data):
         return {"type": "create_entry", "title": title, "data": data}
 
 sys.modules['homeassistant.config_entries'] = homeassistant_config_entries_mock

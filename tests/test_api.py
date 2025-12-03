@@ -12,8 +12,17 @@ from custom_components.cem_monitor.api import CEMClient, AuthResult
 def mock_session():
     """Create a mock aiohttp session."""
     session = AsyncMock(spec=ClientSession)
-    session.post = AsyncMock()
-    session.get = AsyncMock()
+    # Create async context manager mocks for post and get
+    # The return value of post/get should be an async context manager
+    post_context = AsyncMock()
+    post_context.__aenter__ = AsyncMock()
+    post_context.__aexit__ = AsyncMock(return_value=None)
+    session.post = AsyncMock(return_value=post_context)
+    
+    get_context = AsyncMock()
+    get_context.__aenter__ = AsyncMock()
+    get_context.__aexit__ = AsyncMock(return_value=None)
+    session.get = AsyncMock(return_value=get_context)
     return session
 
 
