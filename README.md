@@ -281,26 +281,26 @@ The integration uses the following CEM API endpoints (all **read‑only**):
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    ID 23: Places                            │
-│         Returns: mis_id, mis_nazev                           │
+│         Returns: mis_id, mis_nazev                          │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    ID 108: Meters                            │
-│         Returns: me_id, me_serial, met_id, mis_id          │
+│                    ID 108: Meters                           │
+│         Returns: me_id, me_serial, met_id, mis_id           │
 │         (per object from ID 23)                             │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    ID 107: Counters                          │
+│                    ID 107: Counters                         │
 │         Returns: var_id, pot_id                             │
 │         (per me_id from ID 108)                             │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    ID 222: Unit & Type Mapping               │
+│                    ID 222: Unit & Type Mapping              │
 │         Returns: jed_zkr, jed_nazev, pot_type, lt_key       │
 │         (global, once, cached with 7-day TTL)               │
 └─────────────────────────────────────────────────────────────┘
@@ -320,7 +320,7 @@ The integration uses the following CEM API endpoints (all **read‑only**):
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    ID 8: Last Values                         │
+│                    ID 8: Last Values                        │
 │         Returns: value, timestamp for selected var_ids      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -336,9 +336,9 @@ All calls are designed to keep API load minimal. The integration uses endpoints 
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│              CEMAuthCoordinator (id=4)                       │
-│         Authenticates and provides token/cookie              │
-│         Update: Dynamic (before token expiry)                │
+│              CEMAuthCoordinator (id=4)                      │
+│         Authenticates and provides token/cookie             │
+│         Update: Dynamic (before token expiry)               │
 └─────────────────────────────────────────────────────────────┘
                             │
         ┌───────────────────┼───────────────────┐
@@ -369,10 +369,10 @@ All calls are designed to keep API load minimal. The integration uses endpoints 
                             │
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                    Sensor Entities                           │
+│                    Sensor Entities                          │
 │  - CEMApiStatusSensor (uses CEMAuthCoordinator)             │
 │  - CEMAccountSensor (uses CEMUserInfoCoordinator)           │
-│  - CEMCounterSensor (uses CEMCounterReadingCoordinator)    │
+│  - CEMCounterSensor (uses CEMCounterReadingCoordinator)     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
