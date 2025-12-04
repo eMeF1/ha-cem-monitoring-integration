@@ -278,14 +278,51 @@ The integration uses the following CEM API endpoints (all **read‑only**):
 
 **Call Chain During Setup:**
 
-```text
-ID 23: Places (mis_id, mis_nazev)
-   └─ ID 108: Meters (me_id, me_serial, met_id, mis_id)
-        └─ ID 107 (per me_id): Counters (var_id, pot_id)
-             └─ ID 222 (global, once): Unit & type mapping (jed_zkr, jed_nazev, pot_type, lt_key)
-                  └─ ID 11 (global, once, cis=50): Counter value type names (cik_fk → cik_nazev)
-                       └─ Filter by pot_type (exclude type 2)
-                            └─ ID 8: Last values for selected var_ids
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    ID 23: Places                            │
+│         Returns: mis_id, mis_nazev                           │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    ID 108: Meters                            │
+│         Returns: me_id, me_serial, met_id, mis_id          │
+│         (per object from ID 23)                             │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    ID 107: Counters                          │
+│         Returns: var_id, pot_id                             │
+│         (per me_id from ID 108)                             │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    ID 222: Unit & Type Mapping               │
+│         Returns: jed_zkr, jed_nazev, pot_type, lt_key       │
+│         (global, once, cached with 7-day TTL)               │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    ID 11: Counter Value Types               │
+│         Returns: cik_fk → cik_nazev mapping                 │
+│         (global, once, cis=50, cached with 7-day TTL)       │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Filter by pot_type                       │
+│         Exclude type 2 (state counters)                     │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    ID 8: Last Values                         │
+│         Returns: value, timestamp for selected var_ids      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 All calls are designed to keep API load minimal. The integration uses endpoints id=222 and id=11 to fetch all counter type definitions and value type names once during setup (cached with 7-day TTL, persists across Home Assistant reloads), then filters counters based on `pot_type` before exposing them as sensors.
