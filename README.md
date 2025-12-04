@@ -165,7 +165,7 @@ CEM Object <OBJECT_NAME>
 
 ## How the integration talks to CEM
 
-The integration performs **read‑only** HTTP calls against the CEM API. All API endpoints and their usage are detailed in the [Architecture](#architecture) section below. The integration is designed to keep API load minimal by using batch requests and caching metadata.
+The integration performs **read‑only** HTTP calls against the CEM API. All API endpoints and their usage are detailed in the [Architecture](#architecture) section below. The integration is designed to keep API load minimal by using batch requests and caching counter type metadata (7-day TTL, persists across Home Assistant reloads).
 
 For more details about the CEM API, see the public API documentation:
 
@@ -264,7 +264,7 @@ The integration uses the following CEM API endpoints (all **read‑only**):
    - Parameters: `cis=50`
    - Returns: Mapping of `pot_type` (via `cik_fk`) → `cik_nazev` (human-readable counter value type names)
    - Examples: "Přírustková", "Absolutní", "Výčtová", "Absolutní součtová"
-   - Called: Once per account setup
+   - Called: Once per account setup (cached with 7-day TTL, persists across Home Assistant reloads)
 
 8. **id=222** – Global counter types / units  
    - Used by: Setup/initialization (not a coordinator)
@@ -274,7 +274,7 @@ The integration uses the following CEM API endpoints (all **read‑only**):
      - `pot_type` (counter type: 0=instantaneous, 1=cumulative/total, 2=state, 3=derived)
      - `lt_key` (label key for counter type)
    - Used to filter counters: only types 0, 1, and 3 are exposed as sensors (type 2 state counters like door/contact sensors are excluded)
-   - Called: Once per account setup
+   - Called: Once per account setup (cached with 7-day TTL, persists across Home Assistant reloads)
 
 **Call Chain During Setup:**
 
@@ -288,7 +288,7 @@ ID 23: Places (mis_id, mis_nazev)
                             └─ ID 8: Last values for selected var_ids
 ```
 
-All calls are designed to keep API load minimal. The integration uses endpoints id=222 and id=11 to fetch all counter type definitions and value type names once during setup, then filters counters based on `pot_type` before exposing them as sensors.
+All calls are designed to keep API load minimal. The integration uses endpoints id=222 and id=11 to fetch all counter type definitions and value type names once during setup (cached with 7-day TTL, persists across Home Assistant reloads), then filters counters based on `pot_type` before exposing them as sensors.
 
 ### Data Flow
 
