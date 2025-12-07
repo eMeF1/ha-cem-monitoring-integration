@@ -4,16 +4,17 @@ import logging
 from typing import Any, Optional
 import voluptuous as vol
 from aiohttp import ClientResponseError
+from aiohttp.client_exceptions import ClientConnectorCertificateError
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 
 from .const import (
     DOMAIN,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_VERIFY_SSL,
     CONF_VAR_IDS,
     CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
     DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
@@ -22,6 +23,7 @@ from .const import (
 )
 from .api import CEMClient, AuthResult
 from .cache import TypesCache
+from .coordinator import _create_session
 from .utils import get_int, get_str_nonempty
 
 _LOGGER = logging.getLogger(__name__)
@@ -245,10 +247,16 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._abort_if_unique_id_configured()
 
             # Validate credentials
-            session = async_get_clientsession(self.hass)
+            verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
+            session = _create_session(self.hass, verify_ssl)
             client = CEMClient(session)
             try:
                 auth_result = await client.authenticate(username, password)
+            except ClientConnectorCertificateError as err:
+                # SSL certificate error - suggest disabling SSL verification
+                _LOGGER.warning("SSL certificate verification failed during config flow: %s", err)
+                errors["base"] = "ssl_certificate_error"
+                return self.async_show_form(step_id="user", data_schema=self._schema(), errors=errors)
             except ClientResponseError as err:
                 if err.status in (401, 403):
                     errors["base"] = "invalid_auth"
@@ -266,6 +274,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.hass.data[DOMAIN][flow_data_key] = {
                 CONF_USERNAME: username,
                 CONF_PASSWORD: password,
+                CONF_VERIFY_SSL: verify_ssl,
                 "auth_result": auth_result,
                 "client": client,
             }
@@ -280,6 +289,7 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_USERNAME): str,
                 vol.Required(CONF_PASSWORD): str,
+                vol.Optional(CONF_VERIFY_SSL, default=True): bool,
             }
         )
 
@@ -320,9 +330,15 @@ class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     if var_ids:
                         options[CONF_VAR_IDS] = var_ids
                     
+                    verify_ssl = flow_data.get(CONF_VERIFY_SSL, True)
+                    
                     return self.async_create_entry(
                         title=f"CEM Monitor ({username})" if username else "CEM Monitor",
-                        data={CONF_USERNAME: username, CONF_PASSWORD: password},
+                        data={
+                            CONF_USERNAME: username,
+                            CONF_PASSWORD: password,
+                            CONF_VERIFY_SSL: verify_ssl,
+                        },
                         options=options,
                     )
         
@@ -416,6 +432,9 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
                 except (ValueError, TypeError):
                     errors[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = "invalid_interval"
             
+            # Get verify_ssl setting
+            verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
+            
             if not errors:
                 options_data = {}
                 # Only store var_ids if provided (empty list means show all)
@@ -424,13 +443,29 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
                 # Always store the interval (default is set in schema, so it's always present)
                 interval_value = int(interval) if interval is not None else DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
                 options_data[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = interval_value
-                return self.async_create_entry(title="", data=options_data)
+                
+                # Update entry.data with verify_ssl if it changed
+                verify_ssl_changed = verify_ssl != self._entry.data.get(CONF_VERIFY_SSL, True)
+                if verify_ssl_changed:
+                    new_data = {**self._entry.data, CONF_VERIFY_SSL: verify_ssl}
+                    self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+                
+                result = self.async_create_entry(title="", data=options_data)
+                
+                # Reload the integration after flow completes to apply SSL setting change
+                if verify_ssl_changed:
+                    self.hass.async_create_task(
+                        self.hass.config_entries.async_reload(self._entry.entry_id)
+                    )
+                
+                return result
 
         # Fetch tree data for hierarchical selection
         existing_var_ids = self._entry.options.get(CONF_VAR_IDS, [])
         existing_interval = self._entry.options.get(
             CONF_COUNTER_UPDATE_INTERVAL_MINUTES, DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
         )
+        existing_verify_ssl = self._entry.data.get(CONF_VERIFY_SSL, True)
         
         # Authenticate and fetch tree
         if not username or not password:
@@ -441,10 +476,36 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
                 errors=errors,
             )
         
-        session = async_get_clientsession(self.hass)
+        session = _create_session(self.hass, existing_verify_ssl)
         client = CEMClient(session)
         try:
             auth_result = await client.authenticate(username, password)
+        except ClientConnectorCertificateError as err:
+            # SSL certificate error - allow user to disable SSL verification
+            _LOGGER.warning("SSL certificate verification failed during options flow: %s", err)
+            errors["base"] = "ssl_certificate_error"
+            # Still show the form with verify_ssl checkbox so user can disable it
+            schema = vol.Schema(
+                {
+                    vol.Optional("selected_counters", default=[]): cv.multi_select({}),
+                    vol.Required(
+                        CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
+                        default=existing_interval,
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(
+                            min=MIN_COUNTER_UPDATE_INTERVAL_MINUTES,
+                            max=MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
+                        ),
+                    ),
+                    vol.Optional(CONF_VERIFY_SSL, default=False): bool,  # Suggest disabling SSL verification
+                }
+            )
+            return self.async_show_form(
+                step_id="init",
+                data_schema=schema,
+                errors=errors,
+            )
         except ClientResponseError as err:
             if err.status in (401, 403):
                 errors["base"] = "invalid_auth"
@@ -516,6 +577,7 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
                         max=MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
                     ),
                 ),
+                vol.Optional(CONF_VERIFY_SSL, default=existing_verify_ssl): bool,
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

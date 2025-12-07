@@ -19,6 +19,7 @@ DEFAULT_UPDATE_INTERVAL_SECONDS = 1800  # auth: fallback scheduling (will be adj
 # Config keys
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
+CONF_VERIFY_SSL = "verify_ssl"
 
 # Optional legacy options (CSV allow-list)
 CONF_VAR_ID = "var_id"

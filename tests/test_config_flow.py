@@ -220,12 +220,12 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
@@ -267,12 +267,12 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
@@ -314,12 +314,12 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
@@ -361,12 +361,12 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
@@ -406,11 +406,11 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication failure
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             
@@ -434,11 +434,11 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication failure
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             
@@ -480,12 +480,12 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication success but tree fetch failure
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
@@ -505,12 +505,12 @@ class TestCEMOptionsFlow:
         flow.hass = mock_hass
         
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
             
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.authenticate = AsyncMock(return_value=mock_auth_result)

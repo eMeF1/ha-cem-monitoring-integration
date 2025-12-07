@@ -261,6 +261,10 @@ class MockRequestInfo:
 class MockClientConnectorError(Exception):
     pass
 
+class MockClientConnectorCertificateError(Exception):
+    """Mock ClientConnectorCertificateError for SSL certificate errors."""
+    pass
+
 class MockServerTimeoutError(Exception):
     pass
 
@@ -272,18 +276,26 @@ class MockClientTimeout:
     def __init__(self, *args, **kwargs):
         pass
 
+class MockTCPConnector:
+    """Mock TCPConnector class."""
+    def __init__(self, *args, **kwargs):
+        pass
+
 # Add all classes to aiohttp module (can be imported directly from aiohttp)
 aiohttp_module.ClientResponseError = MockClientResponseError
 aiohttp_module.RequestInfo = MockRequestInfo
 aiohttp_module.ClientSession = MagicMock()
 aiohttp_module.ClientTimeout = MockClientTimeout
+aiohttp_module.TCPConnector = MockTCPConnector
 aiohttp_module.ClientError = MockClientError
 aiohttp_module.ClientConnectorError = MockClientConnectorError
+aiohttp_module.ClientConnectorCertificateError = MockClientConnectorCertificateError
 aiohttp_module.ServerTimeoutError = MockServerTimeoutError
 
 # Mock client_exceptions submodule
 client_exceptions_module = ModuleType('aiohttp.client_exceptions')
 client_exceptions_module.ClientConnectorError = MockClientConnectorError
+client_exceptions_module.ClientConnectorCertificateError = MockClientConnectorCertificateError
 client_exceptions_module.ServerTimeoutError = MockServerTimeoutError
 client_exceptions_module.ClientError = MockClientError
 
@@ -291,6 +303,11 @@ aiohttp_module.client_exceptions = client_exceptions_module
 
 sys.modules['aiohttp'] = aiohttp_module
 sys.modules['aiohttp.client_exceptions'] = client_exceptions_module
+
+# Mock ssl module (standard library, but may need mocking in test environment)
+# ssl is a standard library module, so we don't need to mock it fully
+# but we can add a minimal mock if needed
+# For now, let's rely on the real ssl module since it's part of Python stdlib
 
 # Add custom_components to path
 sys.path.insert(0, str(Path(__file__).parent.parent))

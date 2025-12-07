@@ -11,9 +11,11 @@ Update Frequencies:
 from __future__ import annotations
 
 import logging
+import ssl
 from datetime import datetime, timezone
 from typing import Any, Optional, Callable, Awaitable
 
+from aiohttp import ClientSession, TCPConnector
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -24,11 +26,40 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL_SECONDS,
     CONF_USERNAME,
     CONF_PASSWORD,
+    CONF_VERIFY_SSL,
 )
 from .api import CEMClient, AuthResult
 from .retry import is_401_error
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _create_session(hass: HomeAssistant, verify_ssl: bool = True) -> ClientSession:
+    """
+    Create a ClientSession with optional SSL verification disabled.
+    
+    Args:
+        hass: HomeAssistant instance
+        verify_ssl: If False, disables SSL certificate verification (security risk!)
+        
+    Returns:
+        ClientSession configured with appropriate SSL settings
+    """
+    if verify_ssl:
+        return async_get_clientsession(hass)
+    
+    # Create session with SSL verification disabled
+    _LOGGER.warning(
+        "CEM Monitor: SSL certificate verification is DISABLED. "
+        "This is a security risk and should only be used as a workaround for server-side certificate issues."
+    )
+    
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    
+    connector = TCPConnector(ssl=ssl_context)
+    return ClientSession(connector=connector)
 
 
 class CEMBaseCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -118,7 +149,8 @@ class CEMAuthCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def __init__(self, hass: HomeAssistant, entry) -> None:
         super().__init__(hass, logger=_LOGGER, name=f"{DOMAIN}_auth", update_interval=None)
         self.entry = entry
-        session = async_get_clientsession(hass)
+        verify_ssl = entry.data.get(CONF_VERIFY_SSL, True)
+        session = _create_session(hass, verify_ssl)
         # 🔧 FIX: new CEMClient signature only takes the aiohttp session
         self._client = CEMClient(session)
         self._last_result: Optional[AuthResult] = None

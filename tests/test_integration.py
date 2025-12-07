@@ -109,7 +109,7 @@ class TestIntegrationSetup:
     @pytest.mark.asyncio
     async def test_full_setup_flow(self, mock_hass, mock_entry, mock_auth_result):
         """Test full setup flow creates all coordinators."""
-        with patch('custom_components.cem_monitor.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.CEMAuthCoordinator') as mock_auth_class, \
              patch('custom_components.cem_monitor.CEMUserInfoCoordinator') as mock_userinfo_class, \
@@ -122,7 +122,7 @@ class TestIntegrationSetup:
             
             # Setup mocks
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = MagicMock(spec=CEMClient)
             mock_client_class.return_value = mock_client
             
@@ -226,7 +226,7 @@ class TestIntegrationSetup:
     @pytest.mark.asyncio
     async def test_setup_creates_counter_coordinators_for_selected_var_ids(self, mock_hass, mock_entry, mock_auth_result):
         """Test that counter coordinators are created for selected var_ids."""
-        with patch('custom_components.cem_monitor.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.CEMAuthCoordinator') as mock_auth_class, \
              patch('custom_components.cem_monitor.CEMUserInfoCoordinator') as mock_userinfo_class, \
@@ -239,7 +239,7 @@ class TestIntegrationSetup:
             
             # Setup mocks
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = MagicMock(spec=CEMClient)
             mock_client_class.return_value = mock_client
             
@@ -330,7 +330,7 @@ class TestIntegrationSetup:
     @pytest.mark.asyncio
     async def test_service_registration(self, mock_hass, mock_entry, mock_auth_result):
         """Test that cem_monitor.get_raw service is registered."""
-        with patch('custom_components.cem_monitor.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.CEMAuthCoordinator') as mock_auth_class, \
              patch('custom_components.cem_monitor.CEMUserInfoCoordinator') as mock_userinfo_class, \
@@ -343,7 +343,7 @@ class TestIntegrationSetup:
             
             # Setup mocks
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = MagicMock(spec=CEMClient)
             mock_client_class.return_value = mock_client
             
@@ -448,7 +448,7 @@ class TestIntegrationSetup:
     @pytest.mark.asyncio
     async def test_counter_refresh_timer_setup(self, mock_hass, mock_entry, mock_auth_result):
         """Test that counter refresh timer is set up with correct interval."""
-        with patch('custom_components.cem_monitor.async_get_clientsession') as mock_get_session, \
+        with patch('custom_components.cem_monitor._create_session') as mock_create_session, \
              patch('custom_components.cem_monitor.CEMClient') as mock_client_class, \
              patch('custom_components.cem_monitor.CEMAuthCoordinator') as mock_auth_class, \
              patch('custom_components.cem_monitor.CEMUserInfoCoordinator') as mock_userinfo_class, \
@@ -461,7 +461,7 @@ class TestIntegrationSetup:
             
             # Setup mocks
             mock_session = MagicMock()
-            mock_get_session.return_value = mock_session
+            mock_create_session.return_value = mock_session
             mock_client = MagicMock(spec=CEMClient)
             mock_client_class.return_value = mock_client
             

@@ -7,7 +7,8 @@
         "description": "Enter your CEM credentials.",
         "data": {
           "username": "Username",
-          "password": "Password"
+          "password": "Password",
+          "verify_ssl": "Verify SSL Certificate"
         }
       },
       "select_counters": {
@@ -29,7 +30,8 @@
       "no_counters_selected": "Please select at least one counter to monitor.",
       "invalid_counter_selection": "Invalid counter selection. Please try again.",
       "invalid_interval": "Invalid update interval. Please enter a number.",
-      "interval_range": "Update interval must be between 1 and 1440 minutes (24 hours)."
+      "interval_range": "Update interval must be between 1 and 1440 minutes (24 hours).",
+      "ssl_certificate_error": "SSL certificate verification failed. You can disable SSL verification below, but this is a security risk."
     }
   },
   "options": {
@@ -39,7 +41,8 @@
         "description": "Select the counters you want to monitor and configure the update interval. The tree shows Objects → Meters → Counters.",
         "data": {
           "selected_counters": "Counters",
-          "counter_update_interval_minutes": "Counter Update Interval (minutes)"
+          "counter_update_interval_minutes": "Counter Update Interval (minutes)",
+          "verify_ssl": "Verify SSL Certificate"
         }
       }
     },
@@ -50,7 +53,8 @@
       "unknown": "Unexpected error occurred. Please try again.",
       "fetch_failed": "Failed to fetch objects, meters, or counters from CEM API. Please try again.",
       "no_counters_available": "No counters are available for selection. Please check your CEM account.",
-      "invalid_counter_selection": "Invalid counter selection. Please try again."
+      "invalid_counter_selection": "Invalid counter selection. Please try again.",
+      "ssl_certificate_error": "SSL certificate verification failed. The server's certificate doesn't match the hostname. Uncheck 'Verify SSL Certificate' below to disable verification and continue (this is a security risk)."
     }
   }
 }

@@ -7,16 +7,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback, ServiceCall
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
 from .const import (
     DOMAIN,
+    CONF_VERIFY_SSL,
     CONF_VAR_IDS,
     CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
     DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
 )
 from .api import CEMClient
+from .coordinator import _create_session
 from .cache import TypesCache
 from .coordinator import CEMAuthCoordinator
 from .userinfo_coordinator import CEMUserInfoCoordinator
@@ -185,7 +186,8 @@ async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up CEM Monitoring Integration from a config entry."""
-    session = async_get_clientsession(hass)
+    verify_ssl = entry.data.get(CONF_VERIFY_SSL, True)
+    session = _create_session(hass, verify_ssl)
     client = CEMClient(session)
 
     hass.data.setdefault(DOMAIN, {})
