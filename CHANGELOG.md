@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.4] - 2025-12-10
+
+### Fixed
+- Enhanced cache refresh logic: now forces refresh if `counter_value_types` is empty
+  - Handles stale cached data from previous bug where empty mappings were cached
+  - Ensures fresh data is fetched even if cache appears valid but contains empty data
+
+### Added
+- Comprehensive unit tests with real API response data:
+  - `TestGetPotTypes`: tests for `get_pot_types` with wrapped response format
+  - `TestGetMeters`: tests for `get_meters` with real data structure
+  - `TestGetCountersByMeter`: tests for `get_counters_by_meter` with filtering
+  - `TestGetCountersForObject`: tests for `get_counters_for_object` with plain array
+  - Updated `TestGetObjects` with real response showing empty names
+  - Updated `TestGetCounterValueTypes` with full real API response structure
+- Enhanced debug logging for `counter_value_types`:
+  - Logs full mapping when built from API
+  - Logs available keys when lookup fails
+  - Logs loaded mapping from cache
+
+### Technical
+- API test coverage improved from 16% to 87%
+- All 32 tests passing
+- Tests now use real API response formats for better reliability
+
 ## [0.7.3] - 2025-12-10
 
 ### Fixed
@@ -84,7 +109,8 @@ This release contains internal restructuring only. No breaking changes for end u
 - Sensor entities for counter readings
 - Device structure for accounts and objects
 
-[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.4...HEAD
+[0.7.4]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.0...v0.7.1
