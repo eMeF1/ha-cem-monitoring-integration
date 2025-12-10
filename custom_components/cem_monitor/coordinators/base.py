@@ -15,7 +15,7 @@ import logging
 import ssl
 from collections.abc import Awaitable
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from aiohttp import ClientSession, TCPConnector
 from homeassistant.core import HomeAssistant
@@ -36,7 +36,7 @@ from ..utils.retry import is_401_error
 _LOGGER = logging.getLogger(__name__)
 
 
-def _create_session(hass: HomeAssistant, verify_ssl: bool = True) -> ClientSession:  # type: ignore[return]
+def _create_session(hass: HomeAssistant, verify_ssl: bool = True) -> ClientSession:
     """
     Create a ClientSession with optional SSL verification disabled.
 
@@ -48,7 +48,7 @@ def _create_session(hass: HomeAssistant, verify_ssl: bool = True) -> ClientSessi
         ClientSession configured with appropriate SSL settings
     """
     if verify_ssl:
-        return async_get_clientsession(hass)
+        return cast(ClientSession, async_get_clientsession(hass))
 
     # Create session with SSL verification disabled
     _LOGGER.warning(
