@@ -472,12 +472,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             # Lookup cik_nazev from counter_value_types using pot_type
             cik_nazev: str | None = None
             if pot_type is not None and counter_value_types is not None:
+                _LOGGER.debug(
+                    "CEM counter_value_types lookup: var_id=%s pot_type=%s available_keys=%s",
+                    vid,
+                    pot_type,
+                    list(counter_value_types.keys()),
+                )
                 cik_nazev = counter_value_types.get(pot_type)
                 if cik_nazev is None:
-                    _LOGGER.debug(
-                        "CEM counter_value_types: no match for pot_type=%s (available keys: %s)",
+                    _LOGGER.warning(
+                        "CEM counter_value_types: no match for pot_type=%s var_id=%s (available keys: %s)",
                         pot_type,
+                        vid,
                         list(counter_value_types.keys()),
+                    )
+                else:
+                    _LOGGER.debug(
+                        "CEM counter_value_types: found cik_nazev=%s for pot_type=%s var_id=%s",
+                        cik_nazev,
+                        pot_type,
+                        vid,
                     )
 
             meter_counters_meta[vid] = {
