@@ -422,14 +422,14 @@ class CEMClient:
         token: str,
         cookie: str | None,
         cis: int = 50,
-    ) -> dict:
+    ) -> Any:
         """Get counter value types list (id=11&cis=50)."""
         url = f"{COUNTER_VALUE_TYPES_URL}&cis={int(cis)}"
 
         headers = await self._auth_headers(token, cookie)
         timeout = ClientTimeout(total=20)
 
-        async def _do_get_counter_value_types() -> dict:
+        async def _do_get_counter_value_types() -> Any:
             _LOGGER.debug("CEM API: GET %s", url)
             async with self._session.get(url, headers=headers, timeout=timeout) as resp:
                 resp.raise_for_status()
@@ -440,7 +440,7 @@ class CEMClient:
                     text[:300],
                 )
                 data = await resp.json(content_type=None)
-                return data if isinstance(data, dict) else {}
+                return data
 
         return await async_retry_with_backoff(
             _do_get_counter_value_types, context="CEM counter_value_types"

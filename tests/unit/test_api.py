@@ -648,3 +648,152 @@ class TestGetCounterReadingsBatch:
                 assert call_count == 2  # Initial call + retry after token refresh
             else:
                 raise
+
+
+class TestGetCounterValueTypes:
+    """Test get_counter_value_types method."""
+
+    @pytest.mark.asyncio
+    async def test_get_counter_value_types_success_list(self, client, mock_session):
+        """Test successful get_counter_value_types when API returns a list (actual behavior)."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value='[{"cik_fk": 0, "cik_nazev": "Přírustková"}, {"cik_fk": 1, "cik_nazev": "Absolutní"}]'
+        )
+        mock_response.json = AsyncMock(
+            return_value=[
+                {"cik_fk": 0, "cik_nazev": "Přírustková"},
+                {"cik_fk": 1, "cik_nazev": "Absolutní"},
+            ]
+        )
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_counter_value_types("token", "cookie", cis=50)
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["cik_fk"] == 0
+        assert result[0]["cik_nazev"] == "Přírustková"
+        assert result[1]["cik_fk"] == 1
+        assert result[1]["cik_nazev"] == "Absolutní"
+
+    @pytest.mark.asyncio
+    async def test_get_counter_value_types_success_dict(self, client, mock_session):
+        """Test successful get_counter_value_types when API returns a dict (wrapped response)."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(
+            return_value='{"data": [{"cik_fk": 0, "cik_nazev": "Přírustková"}]}'
+        )
+        mock_response.json = AsyncMock(
+            return_value={"data": [{"cik_fk": 0, "cik_nazev": "Přírustková"}]}
+        )
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_counter_value_types("token", "cookie", cis=50)
+
+        assert isinstance(result, dict)
+        assert "data" in result
+
+    @pytest.mark.asyncio
+    async def test_get_counter_value_types_empty_list(self, client, mock_session):
+        """Test get_counter_value_types with empty list response."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value="[]")
+        mock_response.json = AsyncMock(return_value=[])
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_counter_value_types("token", "cookie", cis=50)
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_counter_value_types_retry_on_timeout(self, client, mock_session):
+        """Test that get_counter_value_types retries on timeout."""
+        call_count = 0
+
+        async def get_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ServerTimeoutError()
+            mock_response = AsyncMock()
+            mock_response.status = 200
+            mock_response.text = AsyncMock(
+                return_value='[{"cik_fk": 0, "cik_nazev": "Přírustková"}]'
+            )
+            mock_response.json = AsyncMock(
+                return_value=[{"cik_fk": 0, "cik_nazev": "Přírustková"}]
+            )
+            mock_response.raise_for_status = MagicMock()
+            return mock_response
+
+        mock_session._get_context.set_side_effect(get_side_effect)
+
+        result = await client.get_counter_value_types("token", "cookie", cis=50)
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["cik_nazev"] == "Přírustková"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_counter_value_types_retry_on_500(self, client, mock_session):
+        """Test that get_counter_value_types retries on 500 error."""
+        call_count = 0
+
+        async def get_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise ClientResponseError(None, None, status=500)
+            mock_response = AsyncMock()
+            mock_response.status = 200
+            mock_response.text = AsyncMock(
+                return_value='[{"cik_fk": 1, "cik_nazev": "Absolutní"}]'
+            )
+            mock_response.json = AsyncMock(
+                return_value=[{"cik_fk": 1, "cik_nazev": "Absolutní"}]
+            )
+            mock_response.raise_for_status = MagicMock()
+            return mock_response
+
+        mock_session._get_context.set_side_effect(get_side_effect)
+
+        result = await client.get_counter_value_types("token", "cookie", cis=50)
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["cik_nazev"] == "Absolutní"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_counter_value_types_no_retry_on_401(self, client, mock_session):
+        """Test that 401 errors are not retried."""
+        from aiohttp import RequestInfo
+
+        call_count = 0
+
+        async def get_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            request_info = RequestInfo(
+                url="http://test.com", method="GET", headers={}, real_url="http://test.com"
+            )
+            raise ClientResponseError(request_info, None, status=401)
+
+        mock_session._get_context.set_side_effect(get_side_effect)
+
+        with pytest.raises(ClientResponseError):
+            await client.get_counter_value_types("token", "cookie", cis=50)
+
+        assert call_count == 1  # No retries

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2025-12-10
+
+### Fixed
+- Fixed bug where `cik_nazev` (counter value type names) was not being retrieved from API endpoint id=11
+  - The API returns a list of objects, but the code was incorrectly converting lists to empty dicts
+  - Now properly handles list responses and extracts `cik_nazev` values correctly
+
+### Added
+- Added comprehensive unit tests for `get_counter_value_types` API method
+  - Tests for list responses (actual API behavior)
+  - Tests for dict responses (wrapped responses)
+  - Tests for retry behavior and error handling
+  - Improved API coverage from 16% to 56%
+
 ## [0.7.1] - 2025-12-10
 
 ### Fixed
@@ -65,7 +79,8 @@ This release contains internal restructuring only. No breaking changes for end u
 - Sensor entities for counter readings
 - Device structure for accounts and objects
 
-[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.6.4...v0.7.0
 [0.6.4]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.6.0...v0.6.4
