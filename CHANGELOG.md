@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.6] - 2025-12-11
+
+### Added
+- Enhanced debug logging for `cik_nazev` lookup process
+  - Logs `pot_type` value being looked up for each counter
+  - Logs available keys in `counter_value_types` mapping
+  - Logs whether lookup succeeds or fails with detailed information
+  - Helps diagnose why `cik_nazev` might still show as "Unknown"
+
 ## [0.7.5] - 2025-12-11
 
 ### Fixed
@@ -122,7 +131,8 @@ This release contains internal restructuring only. No breaking changes for end u
 - Sensor entities for counter readings
 - Device structure for accounts and objects
 
-[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.5...HEAD
+[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.6...HEAD
+[0.7.6]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.5...v0.7.6
 [0.7.5]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.2...v0.7.3
