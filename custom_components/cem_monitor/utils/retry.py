@@ -61,7 +61,10 @@ def is_401_error(error: Exception) -> bool:
     """Check if error is a 401 Unauthorized error."""
     if isinstance(error, ClientResponseError):
         return error.status == 401
-    error_str = str(error)
+    try:
+        error_str: str = str(error)
+    except Exception:
+        return False
     return "401" in error_str
 
 
