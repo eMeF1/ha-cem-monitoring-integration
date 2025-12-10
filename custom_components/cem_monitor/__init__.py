@@ -178,8 +178,9 @@ async def _fetch_counter_value_types_from_api(
                     except Exception:
                         continue
             _LOGGER.debug(
-                "CEM counter_value_types: built mapping for %d pot_type values",
+                "CEM counter_value_types: built mapping for %d pot_type values: %s",
                 count,
+                counter_value_types,
             )
     except Exception as err:
         _LOGGER.debug("CEM counter_value_types: failed to fetch counter value types: %s", err)
@@ -346,6 +347,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # Try loading from cache first
     pot_by_id, counter_value_types, cache_valid = await types_cache.load()
 
+    # If cache is valid but counter_value_types is empty, treat as cache miss
+    # (this handles the case where old cached data had empty counter_value_types due to bug)
+    if cache_valid and (counter_value_types is None or len(counter_value_types) == 0):
+        _LOGGER.warning(
+            "CEM types cache: cache has empty counter_value_types, forcing refresh from API"
+        )
+        cache_valid = False
+
     if not cache_valid:
         # Cache miss/invalid/expired - fetch from API
         _LOGGER.debug("CEM types cache: cache miss or invalid, fetching from API")
@@ -366,8 +375,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         "CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id) if pot_by_id else 0
     )
     _LOGGER.debug(
-        "CEM counter_value_types: loaded %d value type definitions",
+        "CEM counter_value_types: loaded %d value type definitions: %s",
         len(counter_value_types) if counter_value_types else 0,
+        counter_value_types if counter_value_types else None,
     )
 
     # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
@@ -449,6 +459,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             cik_nazev: str | None = None
             if pot_type is not None and counter_value_types is not None:
                 cik_nazev = counter_value_types.get(pot_type)
+                if cik_nazev is None:
+                    _LOGGER.debug(
+                        "CEM counter_value_types: no match for pot_type=%s (available keys: %s)",
+                        pot_type,
+                        list(counter_value_types.keys()),
+                    )
 
             meter_counters_meta[vid] = {
                 "var_id": vid,

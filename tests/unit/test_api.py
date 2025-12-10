@@ -656,17 +656,64 @@ class TestGetCounterValueTypes:
     @pytest.mark.asyncio
     async def test_get_counter_value_types_success_list(self, client, mock_session):
         """Test successful get_counter_value_types when API returns a list (actual behavior)."""
+        # Real API response format with all fields
+        real_api_response = [
+            {
+                "cik_nazev": "Přírustková",
+                "lt_key": "LB_CIS_50_1",
+                "cik_fk": 1,
+                "cik_char": None,
+                "cik_cislo": 0,
+                "cik_double": 0.000,
+                "cik_pzn": "(napr. Vodomer)  Sloupcovy graf. Pro hodiny/dny/mesice/roky se dela rozdil posledni a prvni hodnoty pripadne rozdil hodnot aproximovanych.",
+                "cik_cislo2": None,
+                "cik_zprac": None,
+                "cik_akt": True,
+            },
+            {
+                "cik_nazev": "Výčtová",
+                "lt_key": "LB_CIS_50_2",
+                "cik_fk": 2,
+                "cik_char": None,
+                "cik_cislo": 0,
+                "cik_double": 0.000,
+                "cik_pzn": "(napr. Dverni spinac) ",
+                "cik_cislo2": None,
+                "cik_zprac": None,
+                "cik_akt": True,
+            },
+            {
+                "cik_nazev": "Absolutní součtová",
+                "lt_key": "LB_CIS_50_3",
+                "cik_fk": 3,
+                "cik_char": None,
+                "cik_cislo": 0,
+                "cik_double": 0.000,
+                "cik_pzn": "(napr. Denostupne, jen nektere pristroje)  Sloupcovy graf. Pro hodiny/dny/mesice/roky se dela soucet ze vsech hodnot.",
+                "cik_cislo2": None,
+                "cik_zprac": None,
+                "cik_akt": True,
+            },
+            {
+                "cik_nazev": "Absolutní",
+                "lt_key": "LB_CIS_50_0",
+                "cik_fk": 0,
+                "cik_char": None,
+                "cik_cislo": 0,
+                "cik_double": 0.000,
+                "cik_pzn": "(napr. Teplomer)  Carovy graf. Pro hodiny/dny/mesice/roky se dela vazeny prumer ze vsech hodnot.",
+                "cik_cislo2": None,
+                "cik_zprac": None,
+                "cik_akt": True,
+            },
+        ]
+
         mock_response = AsyncMock()
         mock_response.status = 200
-        mock_response.text = AsyncMock(
-            return_value='[{"cik_fk": 0, "cik_nazev": "Přírustková"}, {"cik_fk": 1, "cik_nazev": "Absolutní"}]'
-        )
-        mock_response.json = AsyncMock(
-            return_value=[
-                {"cik_fk": 0, "cik_nazev": "Přírustková"},
-                {"cik_fk": 1, "cik_nazev": "Absolutní"},
-            ]
-        )
+        import json
+
+        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
+        mock_response.json = AsyncMock(return_value=real_api_response)
         mock_response.raise_for_status = MagicMock()
 
         mock_session._get_context.set_response(mock_response)
@@ -674,11 +721,13 @@ class TestGetCounterValueTypes:
         result = await client.get_counter_value_types("token", "cookie", cis=50)
 
         assert isinstance(result, list)
-        assert len(result) == 2
-        assert result[0]["cik_fk"] == 0
-        assert result[0]["cik_nazev"] == "Přírustková"
-        assert result[1]["cik_fk"] == 1
-        assert result[1]["cik_nazev"] == "Absolutní"
+        assert len(result) == 4
+        # Verify all expected values are present
+        cik_fk_values = {item["cik_fk"]: item["cik_nazev"] for item in result}
+        assert cik_fk_values[0] == "Absolutní"
+        assert cik_fk_values[1] == "Přírustková"
+        assert cik_fk_values[2] == "Výčtová"
+        assert cik_fk_values[3] == "Absolutní součtová"
 
     @pytest.mark.asyncio
     async def test_get_counter_value_types_success_dict(self, client, mock_session):
@@ -791,3 +840,349 @@ class TestGetCounterValueTypes:
             await client.get_counter_value_types("token", "cookie", cis=50)
 
         assert call_count == 1  # No retries
+
+
+class TestGetPotTypes:
+    """Test get_pot_types method."""
+
+    @pytest.mark.asyncio
+    async def test_get_pot_types_success_wrapped(self, client, mock_session):
+        """Test successful get_pot_types when API returns wrapped response (actual behavior)."""
+        # Real API response format - wrapped in {"data": [...], "action": "get"}
+        real_api_response = {
+            "data": [
+                {
+                    "ptv_id": None,
+                    "lt_key": "LB_POCTYP_TEP",
+                    "pot_id": 8,
+                    "jed_nazev": "KPD°",
+                    "pot_defcolor": "#C05800",
+                    "jed_zkr": "KPD°",
+                    "pot_type": 3,
+                    "jed_id": 5,
+                },
+                {
+                    "ptv_id": 4,
+                    "lt_key": "LB_POCTYP_KONT",
+                    "pot_id": 28,
+                    "jed_nazev": " ",
+                    "pot_defcolor": "#004c70",
+                    "jed_zkr": " ",
+                    "pot_type": 2,
+                    "jed_id": 102,
+                },
+                {
+                    "ptv_id": None,
+                    "lt_key": "LB_POCTYP_ELVT",
+                    "pot_id": 1,
+                    "jed_nazev": "kWh",
+                    "pot_defcolor": "#9C0F0F",
+                    "jed_zkr": "kWh",
+                    "pot_type": 1,
+                    "jed_id": 1,
+                },
+                {
+                    "ptv_id": None,
+                    "lt_key": "LB_POCTYP_SV",
+                    "pot_id": 3,
+                    "jed_nazev": "m³",
+                    "pot_defcolor": "#0000C0",
+                    "jed_zkr": "m³",
+                    "pot_type": 1,
+                    "jed_id": 3,
+                },
+            ],
+            "action": "get",
+        }
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        import json
+
+        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
+        mock_response.json = AsyncMock(return_value=real_api_response)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_pot_types("token", "cookie")
+
+        assert isinstance(result, dict)
+        assert "data" in result
+        assert len(result["data"]) == 4
+        # Verify pot_type values are present
+        assert result["data"][0]["pot_id"] == 8
+        assert result["data"][0]["pot_type"] == 3
+        assert result["data"][2]["pot_id"] == 1
+        assert result["data"][2]["pot_type"] == 1
+
+    @pytest.mark.asyncio
+    async def test_get_pot_types_empty_data(self, client, mock_session):
+        """Test get_pot_types with empty data array."""
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value='{"data": [], "action": "get"}')
+        mock_response.json = AsyncMock(return_value={"data": [], "action": "get"})
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_pot_types("token", "cookie")
+
+        assert isinstance(result, dict)
+        assert result["data"] == []
+
+
+class TestGetMeters:
+    """Test get_meters method with real API response format."""
+
+    @pytest.mark.asyncio
+    async def test_get_meters_success_wrapped(self, client, mock_session):
+        """Test successful get_meters when API returns wrapped response (actual behavior)."""
+        # Real API response format - wrapped in {"data": [...], "action": "get"}
+        real_api_response = {
+            "data": [
+                {
+                    "me_fakt": False,
+                    "me_zapoc": True,
+                    "me_sdil": None,
+                    "me_extid": None,
+                    "me_id": 80225,
+                    "me_plom": None,
+                    "me_serial": "41020614",
+                    "me_typ_pzn": None,
+                    "me_alarm": 168,
+                    "me_desc": None,
+                    "me_od": 1631570400000,
+                    "me_over": 1631570400000,
+                    "me_pot_id": 3,
+                    "met_id": 549,
+                    "me_do": None,
+                    "mis_id": 116900,
+                },
+                {
+                    "me_fakt": False,
+                    "me_zapoc": True,
+                    "me_sdil": None,
+                    "me_extid": None,
+                    "me_id": 78680,
+                    "me_plom": None,
+                    "me_serial": "46147845",
+                    "me_typ_pzn": None,
+                    "me_alarm": 168,
+                    "me_desc": None,
+                    "me_od": 1609369200000,
+                    "me_over": 1609369200000,
+                    "me_pot_id": 3,
+                    "met_id": 549,
+                    "me_do": 1631570340000,
+                    "mis_id": 116900,
+                },
+            ],
+            "action": "get",
+        }
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        import json
+
+        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
+        mock_response.json = AsyncMock(return_value=real_api_response)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_meters("token", "cookie")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["me_id"] == 80225
+        assert result[0]["me_serial"] == "41020614"
+        assert result[0]["mis_id"] == 116900
+        assert result[1]["me_id"] == 78680
+        assert result[1]["me_serial"] == "46147845"
+
+
+class TestGetCountersByMeter:
+    """Test get_counters_by_meter method with real API response format."""
+
+    @pytest.mark.asyncio
+    async def test_get_counters_by_meter_success_wrapped(self, client, mock_session):
+        """Test successful get_counters_by_meter when API returns wrapped response (actual behavior)."""
+        # Real API response format - wrapped in {"data": [...], "action": "get"}
+        real_api_response = {
+            "data": [
+                {
+                    "var_lastvar": 846.963,
+                    "var_nasob": 1.0,
+                    "poc_typode": 0,
+                    "poc_insaval": None,
+                    "poc_serv": None,
+                    "var_lastonly": False,
+                    "var_minint": None,
+                    "me_id": 78680,
+                    "var_lasttime": 1631570340000,
+                    "poc_primary": True,
+                    "poc_servis": None,
+                    "pot_id": 3,
+                    "var_q": 0.0,
+                    "var_id": 102496,
+                    "poc_desc": None,
+                    "poc_perioda": 4,
+                    "poc_extid": None,
+                    "tds_id": None,
+                },
+                {
+                    "var_lastvar": 585.51,
+                    "var_nasob": 1.0,
+                    "poc_typode": 2,
+                    "poc_insaval": None,
+                    "poc_serv": None,
+                    "var_lastonly": False,
+                    "var_minint": None,
+                    "me_id": 80225,
+                    "var_lasttime": 1765404105000,
+                    "poc_primary": True,
+                    "poc_servis": None,
+                    "pot_id": 3,
+                    "var_q": 0.0,
+                    "var_id": 104437,
+                    "poc_desc": None,
+                    "poc_perioda": 4,
+                    "poc_extid": None,
+                    "tds_id": None,
+                },
+            ],
+            "action": "get",
+        }
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        import json
+
+        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
+        mock_response.json = AsyncMock(return_value=real_api_response)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_counters_by_meter(80225, "token", "cookie")
+
+        assert isinstance(result, list)
+        # get_counters_by_meter filters by me_id, so only counter with me_id=80225 remains
+        assert len(result) == 1
+        assert result[0]["var_id"] == 104437
+        assert result[0]["pot_id"] == 3
+        assert result[0]["me_id"] == 80225
+
+
+class TestGetCountersForObject:
+    """Test get_counters_for_object method with real API response format."""
+
+    @pytest.mark.asyncio
+    async def test_get_counters_for_object_success_list(self, client, mock_session):
+        """Test successful get_counters_for_object when API returns plain array (actual behavior)."""
+        # Real API response format - plain array (not wrapped)
+        real_api_response = [
+            {
+                "me_id": 80225,
+                "pot_id": 3,
+                "poc_typode": 2,
+                "var_id": 104437,
+                "poc_extid": None,
+                "poc_perioda": 4,
+                "poc_serv": None,
+                "var_nasob": 1.000,
+                "poc_primary": True,
+                "poc_insaval": None,
+                "var_lastonly": False,
+                "tds_id": None,
+                "uni_id": None,
+                "var_lastvar": 585.510,
+                "var_lasttime": 1765407705000,
+                "var_type": 1,
+                "var_q": 0.000,
+                "var_minint": None,
+                "var_exceed": None,
+            }
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        import json
+
+        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
+        mock_response.json = AsyncMock(return_value=real_api_response)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_counters_for_object(116850, "token", "cookie")
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["var_id"] == 104437
+        assert result[0]["pot_id"] == 3
+        assert result[0]["me_id"] == 80225
+
+
+class TestGetObjects:
+    """Test get_objects method with real API response format."""
+
+    @pytest.mark.asyncio
+    async def test_get_objects_success_list_real(self, client, mock_session):
+        """Test successful get_objects with real API response format (plain array)."""
+        # Real API response format - plain array (not wrapped)
+        real_api_response = [
+            {
+                "mis_id": 116850,
+                "mis_idp": 117761,
+                "mit_id": 3,
+                "mis_nazev": "A 133",
+                "mis_nazev2": None,
+                "mis_od": 1609372800000,
+                "mis_do": None,
+                "mis_extid1": None,
+                "mis_extid2": None,
+                "adr_id": None,
+                "mis_sort": 13,
+                "mis_pzn": None,
+                "prk_id": None,
+                "mis_inst_pzn": None,
+            },
+            {
+                "mis_id": 116900,
+                "mis_idp": 116850,
+                "mit_id": -1000,
+                "mis_nazev": "",
+                "mis_nazev2": None,
+                "mis_od": 1609372800000,
+                "mis_do": None,
+                "mis_extid1": None,
+                "mis_extid2": None,
+                "adr_id": None,
+                "mis_sort": 1,
+                "mis_pzn": None,
+                "prk_id": None,
+                "mis_inst_pzn": None,
+            },
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        import json
+
+        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
+        mock_response.json = AsyncMock(return_value=real_api_response)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_objects("token", "cookie")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["mis_id"] == 116850
+        assert result[0]["mis_nazev"] == "A 133"
+        assert result[1]["mis_id"] == 116900
+        assert result[1]["mis_nazev"] == ""  # Empty name (unnamed object)
