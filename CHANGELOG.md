@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2025-12-10
+
+### Fixed
+- Fixed code formatting issues in test files to comply with ruff formatting rules
+
 ## [0.7.2] - 2025-12-10
 
 ### Fixed
@@ -79,7 +84,8 @@ This release contains internal restructuring only. No breaking changes for end u
 - Sensor entities for counter readings
 - Device structure for accounts and objects
 
-[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.3...HEAD
+[0.7.3]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.6.4...v0.7.0
