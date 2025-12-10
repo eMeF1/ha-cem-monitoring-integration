@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 import time
 
 # conftest.py handles path setup and Home Assistant mocking
-from custom_components.cem_monitor.counter_reading_coordinator import CEMCounterReadingCoordinator
+from custom_components.cem_monitor.coordinators.counter_reading import CEMCounterReadingCoordinator
 from custom_components.cem_monitor.api import CEMClient, AuthResult
-from custom_components.cem_monitor.coordinator import CEMAuthCoordinator
+from custom_components.cem_monitor.coordinators.base import CEMAuthCoordinator
 
 
 class AsyncCreateTaskMock:
@@ -420,7 +420,7 @@ class TestBatchRefresh:
 
         # Simulate refresh callback with 401 handling
         from custom_components.cem_monitor.utils import ms_to_iso
-        from custom_components.cem_monitor.retry import is_401_error
+        from custom_components.cem_monitor.utils.retry import is_401_error
 
         async def _do_batch_refresh():
             counter_map_local = bag.get("counter_readings", {})
@@ -566,7 +566,7 @@ class TestBatchRefresh:
         mock_auth_coordinator.async_request_refresh = AsyncMock(side_effect=refresh_side_effect)
 
         # Simulate refresh callback
-        from custom_components.cem_monitor.retry import is_401_error
+        from custom_components.cem_monitor.utils.retry import is_401_error
 
         async def _do_batch_refresh():
             counter_map_local = bag.get("counter_readings", {})

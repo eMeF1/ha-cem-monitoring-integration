@@ -22,10 +22,10 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .coordinator import CEMBaseCoordinator, CEMAuthCoordinator
-from .api import CEMClient
-from .const import DOMAIN
-from .utils import ms_to_iso
+from .base import CEMBaseCoordinator, CEMAuthCoordinator
+from ..api import CEMClient
+from ..const import DOMAIN
+from ..utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -64,3 +64,4 @@ class CEMUserInfoCoordinator(CEMBaseCoordinator):
             "login_valid_from": ms_to_iso(data.get("log_od")),
             "login_valid_to": ms_to_iso(data.get("log_do")),
         }
+

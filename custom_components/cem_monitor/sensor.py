@@ -20,10 +20,12 @@ from .const import (
     # ATTR_TOKEN_EXPIRES_IN,  # intentionally unused
     ATTR_COOKIE_PRESENT,
 )
-from .coordinator import CEMAuthCoordinator
-from .userinfo_coordinator import CEMUserInfoCoordinator
-from .meter_counters_coordinator import CEMMeterCountersCoordinator
-from .counter_reading_coordinator import CEMCounterReadingCoordinator
+from .coordinators import (
+    CEMAuthCoordinator,
+    CEMUserInfoCoordinator,
+    CEMMeterCountersCoordinator,
+    CEMCounterReadingCoordinator,
+)
 from .utils import slug_int, slug_text
 
 

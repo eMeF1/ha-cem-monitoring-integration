@@ -16,7 +16,7 @@ from .const import (
     COUNTER_LAST_URL,
     COUNTER_VALUE_TYPES_URL,
 )
-from .retry import async_retry_with_backoff
+from .utils.retry import async_retry_with_backoff
 
 _LOGGER = logging.getLogger(__name__)
 

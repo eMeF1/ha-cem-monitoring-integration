@@ -17,14 +17,16 @@ from .const import (
     DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
 )
 from .api import CEMClient
-from .coordinator import _create_session
+from .coordinators import _create_session
 from .cache import TypesCache
-from .coordinator import CEMAuthCoordinator
-from .userinfo_coordinator import CEMUserInfoCoordinator
-from .objects_coordinator import CEMObjectsCoordinator
-from .meters_coordinator import CEMMetersCoordinator
-from .meter_counters_coordinator import CEMMeterCountersCoordinator
-from .counter_reading_coordinator import CEMCounterReadingCoordinator
+from .coordinators import (
+    CEMAuthCoordinator,
+    CEMUserInfoCoordinator,
+    CEMObjectsCoordinator,
+    CEMMetersCoordinator,
+    CEMMeterCountersCoordinator,
+    CEMCounterReadingCoordinator,
+)
 from .utils import get_int, get_str_nonempty, ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)

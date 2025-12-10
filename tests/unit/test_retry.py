@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 from aiohttp import ClientResponseError, ClientError, ClientConnectorError, ServerTimeoutError
 
 # conftest.py handles path setup and Home Assistant mocking
-from custom_components.cem_monitor.retry import (
+from custom_components.cem_monitor.utils.retry import (
     is_retryable_error,
     is_401_error,
     async_retry_with_backoff,
@@ -230,7 +230,7 @@ class TestRetryWithBackoff:
                 raise ClientConnectorError(None, OSError("Connection failed"))
             return "success"
 
-        with patch("custom_components.cem_monitor.retry._LOGGER") as mock_logger:
+        with patch("custom_components.cem_monitor.utils.retry._LOGGER") as mock_logger:
             await async_retry_with_backoff(
                 func, max_retries=3, initial_delay=0.1, context="TestContext"
             )

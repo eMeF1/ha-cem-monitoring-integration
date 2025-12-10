@@ -23,9 +23,9 @@ from typing import Any, Dict, List, Optional
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .api import CEMClient
-from .coordinator import CEMBaseCoordinator, CEMAuthCoordinator
-from .utils import get_int, get_str
+from ..api import CEMClient
+from .base import CEMBaseCoordinator, CEMAuthCoordinator
+from ..utils import get_int, get_str
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,3 +61,4 @@ class CEMMetersCoordinator(CEMBaseCoordinator):
             meters.append({"me_id": me_id, "mis_id": mis_id, "me_name": me_name, "raw": it})
 
         return {"meters": meters}
+

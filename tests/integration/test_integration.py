@@ -8,12 +8,12 @@ import time
 # conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor import async_setup_entry, async_unload_entry, async_reload_entry
 from custom_components.cem_monitor.api import CEMClient, AuthResult
-from custom_components.cem_monitor.coordinator import CEMAuthCoordinator
-from custom_components.cem_monitor.userinfo_coordinator import CEMUserInfoCoordinator
-from custom_components.cem_monitor.objects_coordinator import CEMObjectsCoordinator
-from custom_components.cem_monitor.meters_coordinator import CEMMetersCoordinator
-from custom_components.cem_monitor.meter_counters_coordinator import CEMMeterCountersCoordinator
-from custom_components.cem_monitor.counter_reading_coordinator import CEMCounterReadingCoordinator
+from custom_components.cem_monitor.coordinators.base import CEMAuthCoordinator
+from custom_components.cem_monitor.coordinators.userinfo import CEMUserInfoCoordinator
+from custom_components.cem_monitor.coordinators.objects import CEMObjectsCoordinator
+from custom_components.cem_monitor.coordinators.meters import CEMMetersCoordinator
+from custom_components.cem_monitor.coordinators.meter_counters import CEMMeterCountersCoordinator
+from custom_components.cem_monitor.coordinators.counter_reading import CEMCounterReadingCoordinator
 from custom_components.cem_monitor.const import (
     DOMAIN,
     CONF_USERNAME,

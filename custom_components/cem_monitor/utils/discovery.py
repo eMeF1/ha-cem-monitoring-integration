@@ -3,7 +3,15 @@ from __future__ import annotations
 import logging
 from typing import Any, Iterable, Optional, List, Tuple
 
-from .utils import get_int, get_str
+# Import from the parent utils.py module directly to avoid circular import
+import importlib.util
+from pathlib import Path
+utils_file = Path(__file__).parent.parent / "utils.py"
+spec = importlib.util.spec_from_file_location("cem_utils", utils_file)
+cem_utils = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(cem_utils)
+get_int = cem_utils.get_int
+get_str = cem_utils.get_str
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,3 +67,4 @@ def select_water_var_ids(counters: Iterable[dict[str, Any]]) -> List[int]:
     else:
         _LOGGER.debug("Auto-discovery: no water-like counters found")
     return var_ids
+

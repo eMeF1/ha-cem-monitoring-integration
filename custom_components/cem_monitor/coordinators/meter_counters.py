@@ -23,10 +23,10 @@ from typing import Any, Dict, List, Optional
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .api import CEMClient
-from .coordinator import CEMBaseCoordinator, CEMAuthCoordinator
-from .discovery import select_water_var_ids
-from .utils import ms_to_iso
+from ..api import CEMClient
+from .base import CEMBaseCoordinator, CEMAuthCoordinator
+from ..utils.discovery import select_water_var_ids
+from ..utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -126,3 +126,4 @@ class CEMMeterCountersCoordinator(CEMBaseCoordinator):
             "counters_raw": raw_items,  # full array from ID 107
             "raw_map": raw_map,         # { var_id: full raw object }
         }
+

@@ -570,7 +570,7 @@ class TestGetCounterReadingsBatch:
         mock_session._post_context.set_side_effect(post_side_effect)
 
         # Simulate coordinator-level retry pattern
-        from custom_components.cem_monitor.retry import is_401_error
+        from custom_components.cem_monitor.utils.retry import is_401_error
         
         try:
             result = await client.get_counter_readings_batch([104437], "old_token", "old_cookie")
@@ -601,7 +601,7 @@ class TestGetCounterReadingsBatch:
         mock_session._post_context.set_side_effect(post_side_effect)
 
         # Simulate coordinator-level retry pattern
-        from custom_components.cem_monitor.retry import is_401_error
+        from custom_components.cem_monitor.utils.retry import is_401_error
         
         try:
             result = await client.get_counter_readings_batch([104437], "old_token", "old_cookie")

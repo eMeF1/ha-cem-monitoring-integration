@@ -23,7 +23,7 @@ from .const import (
 )
 from .api import CEMClient, AuthResult
 from .cache import TypesCache
-from .coordinator import _create_session
+from .coordinators import _create_session
 from .utils import get_int, get_str_nonempty
 
 _LOGGER = logging.getLogger(__name__)

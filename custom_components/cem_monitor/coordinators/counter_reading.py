@@ -23,10 +23,10 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .coordinator import CEMBaseCoordinator, CEMAuthCoordinator
-from .api import CEMClient
-from .const import DOMAIN
-from .utils import ms_to_iso
+from .base import CEMBaseCoordinator, CEMAuthCoordinator
+from ..api import CEMClient
+from ..const import DOMAIN
+from ..utils import ms_to_iso
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,4 +71,5 @@ class CEMCounterReadingCoordinator(CEMBaseCoordinator):
             "timestamp_iso": ms_to_iso(reading.get("timestamp_ms")),
             "fetched_at": int(time.time() * 1000),  # ensures coordinator data always changes
         }
+
 

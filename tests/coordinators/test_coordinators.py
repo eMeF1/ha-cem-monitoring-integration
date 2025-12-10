@@ -6,12 +6,12 @@ from datetime import datetime, timezone, timedelta
 from aiohttp import ClientResponseError
 
 # conftest.py handles path setup and Home Assistant mocking
-from custom_components.cem_monitor.coordinator import CEMAuthCoordinator
-from custom_components.cem_monitor.userinfo_coordinator import CEMUserInfoCoordinator
-from custom_components.cem_monitor.counter_reading_coordinator import CEMCounterReadingCoordinator
-from custom_components.cem_monitor.objects_coordinator import CEMObjectsCoordinator
-from custom_components.cem_monitor.meters_coordinator import CEMMetersCoordinator
-from custom_components.cem_monitor.meter_counters_coordinator import CEMMeterCountersCoordinator
+from custom_components.cem_monitor.coordinators.base import CEMAuthCoordinator
+from custom_components.cem_monitor.coordinators.userinfo import CEMUserInfoCoordinator
+from custom_components.cem_monitor.coordinators.counter_reading import CEMCounterReadingCoordinator
+from custom_components.cem_monitor.coordinators.objects import CEMObjectsCoordinator
+from custom_components.cem_monitor.coordinators.meters import CEMMetersCoordinator
+from custom_components.cem_monitor.coordinators.meter_counters import CEMMeterCountersCoordinator
 from custom_components.cem_monitor.api import CEMClient, AuthResult
 
 # Use standard Exception for UpdateFailed in tests
@@ -255,8 +255,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_auth_success(self, mock_hass, mock_entry):
         """Test successful authentication with valid credentials."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -289,8 +289,8 @@ class TestAuthCoordinator:
         from aiohttp import RequestInfo
         request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
         
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -314,8 +314,8 @@ class TestAuthCoordinator:
         from aiohttp import RequestInfo
         request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
         
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -335,8 +335,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_auth_network_error(self, mock_hass, mock_entry):
         """Test authentication failure with network error."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -357,8 +357,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_expiry_calculation(self, mock_hass, mock_entry):
         """Test token expiry calculation and refresh scheduling."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -387,8 +387,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_expiry_short(self, mock_hass, mock_entry):
         """Test token expiry calculation for short-lived tokens."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -415,8 +415,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_cookie_extraction(self, mock_hass, mock_entry):
         """Test cookie extraction from response."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -442,8 +442,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_cookie_missing(self, mock_hass, mock_entry):
         """Test handling when cookie is missing from response."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -469,8 +469,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_property(self, mock_hass, mock_entry):
         """Test token property returns access_token."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -495,7 +495,7 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_property_none(self, mock_hass, mock_entry):
         """Test token property returns None when no auth result."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
@@ -504,8 +504,8 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_expires_at_property(self, mock_hass, mock_entry):
         """Test token_expires_at property returns correct datetime."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinator.CEMClient') as mock_client_class:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
+             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -534,7 +534,7 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_expires_at_property_none(self, mock_hass, mock_entry):
         """Test token_expires_at property returns None when no auth result."""
-        with patch('custom_components.cem_monitor.coordinator.async_get_clientsession') as mock_get_session:
+        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
