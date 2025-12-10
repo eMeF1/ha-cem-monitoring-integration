@@ -731,9 +731,7 @@ class TestGetCounterValueTypes:
             mock_response.text = AsyncMock(
                 return_value='[{"cik_fk": 0, "cik_nazev": "Přírustková"}]'
             )
-            mock_response.json = AsyncMock(
-                return_value=[{"cik_fk": 0, "cik_nazev": "Přírustková"}]
-            )
+            mock_response.json = AsyncMock(return_value=[{"cik_fk": 0, "cik_nazev": "Přírustková"}])
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
@@ -758,12 +756,8 @@ class TestGetCounterValueTypes:
                 raise ClientResponseError(None, None, status=500)
             mock_response = AsyncMock()
             mock_response.status = 200
-            mock_response.text = AsyncMock(
-                return_value='[{"cik_fk": 1, "cik_nazev": "Absolutní"}]'
-            )
-            mock_response.json = AsyncMock(
-                return_value=[{"cik_fk": 1, "cik_nazev": "Absolutní"}]
-            )
+            mock_response.text = AsyncMock(return_value='[{"cik_fk": 1, "cik_nazev": "Absolutní"}]')
+            mock_response.json = AsyncMock(return_value=[{"cik_fk": 1, "cik_nazev": "Absolutní"}])
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
