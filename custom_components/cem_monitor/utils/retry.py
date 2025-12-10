@@ -61,7 +61,8 @@ def is_401_error(error: Exception) -> bool:
     """Check if error is a 401 Unauthorized error."""
     if isinstance(error, ClientResponseError):
         return error.status == 401
-    return bool("401" in str(error))
+    error_str = str(error)
+    return "401" in error_str
 
 
 async def async_retry_with_backoff(
