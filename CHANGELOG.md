@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2025-12-10
+
+### Fixed
+- Fixed all linting errors (ruff)
+- Fixed all type checking errors (mypy)
+- Fixed code formatting issues
+- Resolved CI/CD pipeline failures
+
+### Technical
+- All CI checks now passing (linting, formatting, type checking, tests)
+- Improved type annotations for better code quality
+- Code properly formatted with ruff
+
 ## [0.7.0] - 2025-12-10
 
 ### Changed
@@ -52,7 +65,8 @@ This release contains internal restructuring only. No breaking changes for end u
 - Sensor entities for counter readings
 - Device structure for accounts and objects
 
-[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.6.4...v0.7.0
 [0.6.4]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.6.0...v0.6.4
 [0.6.0]: https://github.com/eMeF1/ha-cem-monitoring-integration/releases/tag/v0.6.0
