@@ -60,7 +60,9 @@ def is_retryable_error(error: Exception) -> bool:
 def is_401_error(error: Exception) -> bool:
     """Check if error is a 401 Unauthorized error."""
     if isinstance(error, ClientResponseError):
-        return error.status == 401
+        status: int = error.status
+        result: bool = status == 401
+        return result
     try:
         error_str: str = str(error)
         result: bool = "401" in error_str
