@@ -352,12 +352,8 @@ class TestIntegrationSetup:
             patch("custom_components.cem_monitor.CEMUserInfoCoordinator") as mock_userinfo_class,
             patch("custom_components.cem_monitor.CEMObjectsCoordinator") as mock_objects_class,
             patch("custom_components.cem_monitor.CEMMetersCoordinator") as mock_meters_class,
-            patch(
-                "custom_components.cem_monitor.CEMMeterCountersCoordinator"
-            ),
-            patch(
-                "custom_components.cem_monitor.CEMCounterReadingCoordinator"
-            ),
+            patch("custom_components.cem_monitor.CEMMeterCountersCoordinator"),
+            patch("custom_components.cem_monitor.CEMCounterReadingCoordinator"),
             patch("custom_components.cem_monitor.TypesCache") as mock_cache_class,
             patch("custom_components.cem_monitor.async_track_time_interval") as mock_track_interval,
         ):
@@ -474,12 +470,8 @@ class TestIntegrationSetup:
             patch("custom_components.cem_monitor.CEMUserInfoCoordinator") as mock_userinfo_class,
             patch("custom_components.cem_monitor.CEMObjectsCoordinator") as mock_objects_class,
             patch("custom_components.cem_monitor.CEMMetersCoordinator") as mock_meters_class,
-            patch(
-                "custom_components.cem_monitor.CEMMeterCountersCoordinator"
-            ),
-            patch(
-                "custom_components.cem_monitor.CEMCounterReadingCoordinator"
-            ),
+            patch("custom_components.cem_monitor.CEMMeterCountersCoordinator"),
+            patch("custom_components.cem_monitor.CEMCounterReadingCoordinator"),
             patch("custom_components.cem_monitor.TypesCache") as mock_cache_class,
             patch("custom_components.cem_monitor.async_track_time_interval") as mock_track_interval,
         ):

@@ -245,9 +245,7 @@ class TestBatchRefresh:
                 return
 
             try:
-                await client_local.get_counter_readings_batch(
-                    var_ids, token, cookie
-                )
+                await client_local.get_counter_readings_batch(var_ids, token, cookie)
                 # ... update coordinators ...
             except Exception:
                 # Fallback to individual requests
@@ -572,9 +570,7 @@ class TestBatchRefresh:
                 return
 
             try:
-                await client_local.get_counter_readings_batch(
-                    var_ids, token, cookie
-                )
+                await client_local.get_counter_readings_batch(var_ids, token, cookie)
                 # ... update coordinators ...
             except Exception:
                 # Fallback to individual requests on any error
@@ -641,9 +637,7 @@ class TestBatchRefresh:
                 return
 
             try:
-                await client_local.get_counter_readings_batch(
-                    var_ids, token, cookie
-                )
+                await client_local.get_counter_readings_batch(var_ids, token, cookie)
                 # ... update coordinators ...
             except Exception as err:
                 if is_401_error(err):
@@ -660,9 +654,7 @@ class TestBatchRefresh:
                         auth_local._last_result.cookie_value if auth_local._last_result else None
                     )
                     try:
-                        await client_local.get_counter_readings_batch(
-                            var_ids, token, cookie
-                        )
+                        await client_local.get_counter_readings_batch(var_ids, token, cookie)
                         # ... update coordinators ...
                     except Exception:
                         # Fallback to individual requests

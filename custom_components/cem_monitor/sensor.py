@@ -118,9 +118,7 @@ class _DeviceInfoHelper:
         return "CEM Object"
 
     @staticmethod
-    def build_account(
-        entry: ConfigEntry, company_id: int | None, label: str | None
-    ) -> DeviceInfo:
+    def build_account(entry: ConfigEntry, company_id: int | None, label: str | None) -> DeviceInfo:
         model = f"CEM Account {label}" if label and label.strip() else "CEM Account"
         return DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id, "account")},
