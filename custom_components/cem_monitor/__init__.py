@@ -1,31 +1,31 @@
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import timedelta
+from typing import Any, Optional
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import (
-    DOMAIN,
-    CONF_VERIFY_SSL,
-    CONF_VAR_IDS,
-    CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
-    DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
-)
 from .api import CEMClient
-from .coordinators import _create_session
 from .cache import TypesCache
+from .const import (
+    CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
+    CONF_VAR_IDS,
+    CONF_VERIFY_SSL,
+    DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
+    DOMAIN,
+)
 from .coordinators import (
     CEMAuthCoordinator,
-    CEMUserInfoCoordinator,
-    CEMObjectsCoordinator,
-    CEMMetersCoordinator,
-    CEMMeterCountersCoordinator,
     CEMCounterReadingCoordinator,
+    CEMMeterCountersCoordinator,
+    CEMMetersCoordinator,
+    CEMObjectsCoordinator,
+    CEMUserInfoCoordinator,
+    _create_session,
 )
 from .utils import get_int, get_str_nonempty, ms_to_iso
 
@@ -34,14 +34,16 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS = ["sensor"]
 
 
-def _build_objects_maps(objects_data: dict[str, Any]) -> tuple[dict[int, dict], dict[int, Optional[str]]]:
+def _build_objects_maps(
+    objects_data: dict[str, Any],
+) -> tuple[dict[int, dict], dict[int, str | None]]:
     """
     Build:
       - raw_by_mis: mis_id -> raw record (contains mis_idp)
       - mis_name_by_id: mis_id -> 'mis_nazev' (may be empty/None)
     """
     raw_by_mis: dict[int, dict] = {}
-    mis_name_by_id: dict[int, Optional[str]] = {}
+    mis_name_by_id: dict[int, str | None] = {}
 
     if objects_data:
         rbm = objects_data.get("raw_by_mis") or {}
@@ -66,10 +68,10 @@ def _build_objects_maps(objects_data: dict[str, Any]) -> tuple[dict[int, dict], 
 
 
 def _resolve_object_name(
-    mis_id: Optional[int],
+    mis_id: int | None,
     raw_by_mis: dict[int, dict],
-    mis_name_by_id: dict[int, Optional[str]],
-) -> Tuple[Optional[str], Optional[int]]:
+    mis_name_by_id: dict[int, str | None],
+) -> tuple[str | None, int | None]:
     """Return (resolved_name, source_mis_id). If mis has no name, climb via mis_idp to find a named ancestor."""
     if mis_id is None:
         return None, None
@@ -93,15 +95,15 @@ def _resolve_object_name(
 
 
 async def _fetch_pot_types_from_api(
-    client: CEMClient, token: Optional[str], cookie: Optional[str]
-) -> Dict[int, Dict[str, Any]]:
+    client: CEMClient, token: str | None, cookie: str | None
+) -> dict[int, dict[str, Any]]:
     """
     Fetch pot_types from API (id=222).
 
     Returns:
         Dictionary mapping pot_id -> pot type data
     """
-    pot_by_id: Dict[int, Dict[str, Any]] = {}
+    pot_by_id: dict[int, dict[str, Any]] = {}
     if not token:
         _LOGGER.warning("CEM pot_types: no auth token available, skipping id=222")
         return pot_by_id
@@ -136,15 +138,15 @@ async def _fetch_pot_types_from_api(
 
 
 async def _fetch_counter_value_types_from_api(
-    client: CEMClient, token: Optional[str], cookie: Optional[str]
-) -> Dict[int, str]:
+    client: CEMClient, token: str | None, cookie: str | None
+) -> dict[int, str]:
     """
     Fetch counter_value_types from API (id=11&cis=50).
 
     Returns:
         Dictionary mapping pot_type -> counter value type name
     """
-    counter_value_types: Dict[int, str] = {}
+    counter_value_types: dict[int, str] = {}
     if not token:
         _LOGGER.warning("CEM counter_value_types: no auth token available, skipping id=11")
         return counter_value_types
@@ -153,7 +155,11 @@ async def _fetch_counter_value_types_from_api(
         _LOGGER.debug("CEM counter_value_types: fetching counter value types (id=11&cis=50)")
         cvt_payload = await client.get_counter_value_types(token, cookie, cis=50)
         # id=11 returns an array of objects
-        cvt_list = cvt_payload if isinstance(cvt_payload, list) else (cvt_payload.get("data") if isinstance(cvt_payload, dict) else [])
+        cvt_list = (
+            cvt_payload
+            if isinstance(cvt_payload, list)
+            else (cvt_payload.get("data") if isinstance(cvt_payload, dict) else [])
+        )
         if isinstance(cvt_list, list):
             count = 0
             for item in cvt_list:
@@ -193,17 +199,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     client = CEMClient(session)
 
     hass.data.setdefault(DOMAIN, {})
-    bag: Dict[str, Any] = hass.data[DOMAIN].setdefault(entry.entry_id, {})
+    bag: dict[str, Any] = hass.data[DOMAIN].setdefault(entry.entry_id, {})
     bag["client"] = client
 
     # Register update listener to reload integration when options change
-    entry.async_on_unload(
-        entry.add_update_listener(async_reload_entry)
-    )
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     # Get allowed var_ids from config entry options (user selection)
-    allowed_var_ids: Optional[List[int]] = entry.options.get(CONF_VAR_IDS)
-    allowed_var_ids_set: Optional[set[int]] = None
+    allowed_var_ids: list[int] | None = entry.options.get(CONF_VAR_IDS)
+    allowed_var_ids_set: set[int] | None = None
     if allowed_var_ids:
         allowed_var_ids_set = set(allowed_var_ids)
         _LOGGER.debug("CEM: Filtering counters to var_ids=%s", allowed_var_ids)
@@ -253,15 +257,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 # For counter_last we want the raw id=8 payload, not the processed dict,
                 # so we re-implement the call similar to CEMClient.get_counter_reading
                 from .const import COUNTER_LAST_URL
+
                 headers = await client._auth_headers(token, cookie)  # type: ignore[attr-defined]
                 url = f"{COUNTER_LAST_URL}&var_id={int(var_id)}"
                 from aiohttp import ClientTimeout
+
                 timeout = ClientTimeout(total=20)
                 async with client._session.get(url, headers=headers, timeout=timeout) as resp:  # type: ignore[attr-defined]
                     resp.raise_for_status()
                     text = await resp.text()
                     _LOGGER.debug("CEM get_raw counter_last: HTTP %s", resp.status)
-                    _LOGGER.debug("CEM get_raw counter_last: raw body (first 300 chars): %s", text[:300])
+                    _LOGGER.debug(
+                        "CEM get_raw counter_last: raw body (first 300 chars): %s", text[:300]
+                    )
                     data = await resp.json(content_type=None)
             else:
                 _LOGGER.error("CEM get_raw: unknown endpoint %s", endpoint)
@@ -284,7 +292,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     hass.services.async_register(DOMAIN, "get_raw", handle_get_raw)
 
-
     # 2) Account info (id=9)
     ui = CEMUserInfoCoordinator(hass, client, auth)
     bag["userinfo"] = ui
@@ -302,7 +309,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     bag["meters"] = meters
     await meters.async_config_entry_first_refresh()
 
-    meters_list: List[Dict[str, Any]] = []
+    meters_list: list[dict[str, Any]] = []
     if meters.data:
         if isinstance(meters.data, dict):
             if isinstance(meters.data.get("meters"), list):
@@ -312,15 +319,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         elif isinstance(meters.data, list):
             meters_list = meters.data
 
-    meters_map: Dict[int, Dict[str, Any]] = {}
+    meters_map: dict[int, dict[str, Any]] = {}
     bag["meters_map"] = meters_map
 
     # var_id -> [me_id, ...]   (shared counters across meters)
-    var_shares: Dict[int, List[int]] = {}
+    var_shares: dict[int, list[int]] = {}
     bag["var_shares"] = var_shares
 
     # One counter reading coordinator per var_id per account
-    counter_map: Dict[int, CEMCounterReadingCoordinator] = bag.setdefault("counter_readings", {})
+    counter_map: dict[int, CEMCounterReadingCoordinator] = bag.setdefault("counter_readings", {})
 
     # Load pot_types and counter_value_types from cache or fetch from API
     token = auth.token
@@ -328,17 +335,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # Initialize cache
     types_cache = TypesCache(hass)
-    
+
     # Try loading from cache first
     pot_by_id, counter_value_types, cache_valid = await types_cache.load()
-    
+
     if not cache_valid:
         # Cache miss/invalid/expired - fetch from API
         _LOGGER.debug("CEM types cache: cache miss or invalid, fetching from API")
-        
+
         pot_by_id = await _fetch_pot_types_from_api(client, token, cookie)
         counter_value_types = await _fetch_counter_value_types_from_api(client, token, cookie)
-        
+
         # Save to cache for next time (only if we got valid data)
         if pot_by_id or counter_value_types:
             await types_cache.save(pot_by_id, counter_value_types)
@@ -349,9 +356,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     bag["pot_types"] = pot_by_id
     bag["counter_value_types"] = counter_value_types
     _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
-    _LOGGER.debug("CEM counter_value_types: loaded %d value type definitions", len(counter_value_types))
-
-
+    _LOGGER.debug(
+        "CEM counter_value_types: loaded %d value type definitions", len(counter_value_types)
+    )
 
     # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
     for m in meters_list:
@@ -367,15 +374,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         mis_name, mis_name_source = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
 
         # Counters (id=107&me_id)
-        mc = CEMMeterCountersCoordinator(hass, client, auth, me_id=me_id, me_name=me_name, mis_id=mis_id)
+        mc = CEMMeterCountersCoordinator(
+            hass, client, auth, me_id=me_id, me_name=me_name, mis_id=mis_id
+        )
         await mc.async_config_entry_first_refresh()
         mc_data = mc.data or {}
         counters = mc_data.get("counters") or []
-        raw_map: Dict[int, Dict[str, Any]] = mc_data.get("raw_map") or {}
+        raw_map: dict[int, dict[str, Any]] = mc_data.get("raw_map") or {}
 
         # Build metadata for each counter and decide which ones to expose
-        meter_counters_meta: Dict[int, Dict[str, Any]] = {}
-        selected_var_ids: List[int] = []
+        meter_counters_meta: dict[int, dict[str, Any]] = {}
+        selected_var_ids: list[int] = []
 
         for c in counters:
             if not isinstance(c, dict):
@@ -397,8 +406,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
             # 3) Resolve pot_id and pot_info
             pot_id_raw = raw_c.get("pot_id") or c.get("pot_id")
-            pot_id_int: Optional[int] = None
-            pot_info: Optional[Dict[str, Any]] = None
+            pot_id_int: int | None = None
+            pot_info: dict[str, Any] | None = None
             if pot_id_raw is not None:
                 try:
                     pot_id_int = int(pot_id_raw)
@@ -408,7 +417,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     pot_info = pot_by_id.get(pot_id_int)
 
             # 4) Resolve pot_type from pot_info (CEM: 0=instantaneous,1=total,2=state,3=derived)
-            pot_type: Optional[int] = None
+            pot_type: int | None = None
             if isinstance(pot_info, dict):
                 try:
                     pt_raw = pot_info.get("pot_type")
@@ -427,7 +436,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 continue
 
             # Lookup cik_nazev from counter_value_types using pot_type
-            cik_nazev: Optional[str] = None
+            cik_nazev: str | None = None
             if pot_type is not None:
                 cik_nazev = counter_value_types.get(pot_type)
 
@@ -448,7 +457,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         )
 
         # Wire coordinators for all selected counters (unchanged)
-        this_meter_counters: Dict[int, CEMCounterReadingCoordinator] = {}
+        this_meter_counters: dict[int, CEMCounterReadingCoordinator] = {}
         for vid in selected_var_ids:
             if vid not in counter_map:
                 counter_map[vid] = CEMCounterReadingCoordinator(hass, client, auth, var_id=vid)
@@ -473,7 +482,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if callable(existing_unsub):
         existing_unsub()
         _LOGGER.debug("CEM: Cleaned up existing counter refresh timer")
-    
+
     # Get configured update interval or use default (30 minutes)
     update_interval_minutes = entry.options.get(
         CONF_COUNTER_UPDATE_INTERVAL_MINUTES, DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
@@ -484,41 +493,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     @callback
     def _counter_refresh_callback(now) -> None:
         """Callback for periodic counter refresh - uses batch API when possible."""
+
         async def _do_batch_refresh() -> None:
-            counter_map_local: Dict[int, CEMCounterReadingCoordinator] = bag.get("counter_readings", {})
+            counter_map_local: dict[int, CEMCounterReadingCoordinator] = bag.get(
+                "counter_readings", {}
+            )
             count = len(counter_map_local)
             _LOGGER.debug("CEM counter: scheduled refresh tick (%d coordinators)", count)
-            
+
             if count == 0:
                 return
-            
+
             # Collect all var_ids
             var_ids = list(counter_map_local.keys())
-            
+
             # Get auth credentials
             auth_local = bag.get("coordinator")
             if not auth_local or not auth_local.token:
-                _LOGGER.warning("CEM counter batch: no auth token available, falling back to individual requests")
+                _LOGGER.warning(
+                    "CEM counter batch: no auth token available, falling back to individual requests"
+                )
                 # Fallback to individual requests
                 for coord in counter_map_local.values():
                     hass.async_create_task(coord.async_request_refresh())
                 return
-            
+
             token = auth_local.token
             cookie = auth_local._last_result.cookie_value if auth_local._last_result else None
             client_local = bag.get("client")
-            
+
             if not client_local:
-                _LOGGER.warning("CEM counter batch: no client available, falling back to individual requests")
+                _LOGGER.warning(
+                    "CEM counter batch: no client available, falling back to individual requests"
+                )
                 # Fallback to individual requests
                 for coord in counter_map_local.values():
                     hass.async_create_task(coord.async_request_refresh())
                 return
-            
+
             # Attempt batch API call
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
-                
+                batch_results = await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
+
                 # Update each coordinator with batch results
                 for var_id, coord in counter_map_local.items():
                     if var_id in batch_results:
@@ -528,22 +546,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                             "value": reading.get("value"),
                             "timestamp_ms": reading.get("timestamp_ms"),
                             "timestamp_iso": ms_to_iso(reading.get("timestamp_ms")),
-                            "fetched_at": int(time.time() * 1000),  # ensures coordinator data always changes
+                            "fetched_at": int(
+                                time.time() * 1000
+                            ),  # ensures coordinator data always changes
                         }
                         coord.async_update_listeners()
                     else:
                         # Missing var_id in batch response - fallback to individual request
-                        _LOGGER.debug("CEM counter batch: var_id %d not in batch response, using individual request", var_id)
+                        _LOGGER.debug(
+                            "CEM counter batch: var_id %d not in batch response, using individual request",
+                            var_id,
+                        )
                         hass.async_create_task(coord.async_request_refresh())
-                
-                _LOGGER.debug("CEM counter batch: successfully updated %d/%d coordinators", len(batch_results), count)
-                
+
+                _LOGGER.debug(
+                    "CEM counter batch: successfully updated %d/%d coordinators",
+                    len(batch_results),
+                    count,
+                )
+
             except Exception as err:
-                _LOGGER.warning("CEM counter batch: batch request failed (%s), falling back to individual requests", err)
+                _LOGGER.warning(
+                    "CEM counter batch: batch request failed (%s), falling back to individual requests",
+                    err,
+                )
                 # Fallback to individual requests on error
                 for coord in counter_map_local.values():
                     hass.async_create_task(coord.async_request_refresh())
-        
+
         hass.async_create_task(_do_batch_refresh())
 
     # Run at configured interval (default: 30 minutes)

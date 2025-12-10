@@ -1,20 +1,25 @@
 """Tests for config flow edge cases."""
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 from aiohttp import ClientResponseError
 
+from custom_components.cem_monitor.api import AuthResult, CEMClient
+
 # conftest.py handles path setup and Home Assistant mocking
-from custom_components.cem_monitor.config_flow import CEMConfigFlow, CEMOptionsFlow, _fetch_objects_tree
-from custom_components.cem_monitor.api import CEMClient, AuthResult
+from custom_components.cem_monitor.config_flow import (
+    CEMConfigFlow,
+    CEMOptionsFlow,
+)
 from custom_components.cem_monitor.const import (
-    DOMAIN,
-    CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_VAR_IDS,
     CONF_COUNTER_UPDATE_INTERVAL_MINUTES,
-    MIN_COUNTER_UPDATE_INTERVAL_MINUTES,
-    MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
+    CONF_PASSWORD,
+    CONF_USERNAME,
     DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES,
+    DOMAIN,
+    MAX_COUNTER_UPDATE_INTERVAL_MINUTES,
+    MIN_COUNTER_UPDATE_INTERVAL_MINUTES,
 )
 
 
@@ -64,7 +69,7 @@ class TestCEMConfigFlow:
         flow = CEMConfigFlow()
         flow.hass = mock_hass
         flow.flow_id = "test_flow_id"
-        
+
         # Setup flow data
         flow_data_key = f"{DOMAIN}_flow_{flow.flow_id}"
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
@@ -73,9 +78,11 @@ class TestCEMConfigFlow:
             "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
-        
+
         # Mock _fetch_objects_tree to return some counters
-        with patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "custom_components.cem_monitor.config_flow._fetch_objects_tree", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = {
                 1: {
                     "mis_name": "Object 1",
@@ -90,10 +97,10 @@ class TestCEMConfigFlow:
                     },
                 },
             }
-            
+
             # Try to submit with empty selection
             result = await flow.async_step_select_counters(user_input={"selected_counters": []})
-            
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "select_counters"
@@ -105,7 +112,7 @@ class TestCEMConfigFlow:
         flow = CEMConfigFlow()
         flow.hass = mock_hass
         flow.flow_id = "test_flow_id"
-        
+
         # Setup flow data
         flow_data_key = f"{DOMAIN}_flow_{flow.flow_id}"
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
@@ -114,9 +121,11 @@ class TestCEMConfigFlow:
             "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
-        
+
         # Mock _fetch_objects_tree
-        with patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "custom_components.cem_monitor.config_flow._fetch_objects_tree", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = {
                 1: {
                     "mis_name": "Object 1",
@@ -131,10 +140,12 @@ class TestCEMConfigFlow:
                     },
                 },
             }
-            
+
             # Try to submit with invalid selection (non-integer string)
-            result = await flow.async_step_select_counters(user_input={"selected_counters": ["invalid"]})
-            
+            result = await flow.async_step_select_counters(
+                user_input={"selected_counters": ["invalid"]}
+            )
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "select_counters"
@@ -146,11 +157,11 @@ class TestCEMConfigFlow:
         flow = CEMConfigFlow()
         flow.hass = mock_hass
         flow.flow_id = "test_flow_id"
-        
+
         # Don't setup flow data - it should be missing
-        
+
         result = await flow.async_step_select_counters()
-        
+
         # Should abort
         assert result["type"] == "abort"
         assert result["reason"] == "no_flow_data"
@@ -161,7 +172,7 @@ class TestCEMConfigFlow:
         flow = CEMConfigFlow()
         flow.hass = mock_hass
         flow.flow_id = "test_flow_id"
-        
+
         # Setup flow data
         flow_data_key = f"{DOMAIN}_flow_{flow.flow_id}"
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
@@ -170,13 +181,15 @@ class TestCEMConfigFlow:
             "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
-        
+
         # Mock _fetch_objects_tree to raise exception
-        with patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "custom_components.cem_monitor.config_flow._fetch_objects_tree", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.side_effect = Exception("Fetch failed")
-            
+
             result = await flow.async_step_select_counters()
-            
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "select_counters"
@@ -188,7 +201,7 @@ class TestCEMConfigFlow:
         flow = CEMConfigFlow()
         flow.hass = mock_hass
         flow.flow_id = "test_flow_id"
-        
+
         # Setup flow data
         flow_data_key = f"{DOMAIN}_flow_{flow.flow_id}"
         mock_hass.data.setdefault(DOMAIN, {})[flow_data_key] = {
@@ -197,13 +210,15 @@ class TestCEMConfigFlow:
             "auth_result": mock_auth_result,
             "client": MagicMock(),
         }
-        
+
         # Mock _fetch_objects_tree to return empty tree
-        with patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
+        with patch(
+            "custom_components.cem_monitor.config_flow._fetch_objects_tree", new_callable=AsyncMock
+        ) as mock_fetch:
             mock_fetch.return_value = {}
-            
+
             result = await flow.async_step_select_counters()
-            
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "select_counters"
@@ -218,12 +233,18 @@ class TestCEMOptionsFlow:
         """Test that interval below minimum shows error."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
-             patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+            patch(
+                "custom_components.cem_monitor.config_flow._fetch_objects_tree",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -243,17 +264,19 @@ class TestCEMOptionsFlow:
                     },
                 },
             }
-            
+
             # First call to show form
             result = await flow.async_step_init()
             assert result["type"] == "form"
-            
+
             # Try to submit with interval below minimum
-            result = await flow.async_step_init(user_input={
-                "selected_counters": [],
-                CONF_COUNTER_UPDATE_INTERVAL_MINUTES: MIN_COUNTER_UPDATE_INTERVAL_MINUTES - 1,
-            })
-            
+            result = await flow.async_step_init(
+                user_input={
+                    "selected_counters": [],
+                    CONF_COUNTER_UPDATE_INTERVAL_MINUTES: MIN_COUNTER_UPDATE_INTERVAL_MINUTES - 1,
+                }
+            )
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "init"
@@ -265,12 +288,18 @@ class TestCEMOptionsFlow:
         """Test that interval above maximum shows error."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
-             patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+            patch(
+                "custom_components.cem_monitor.config_flow._fetch_objects_tree",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -290,17 +319,19 @@ class TestCEMOptionsFlow:
                     },
                 },
             }
-            
+
             # First call to show form
             result = await flow.async_step_init()
             assert result["type"] == "form"
-            
+
             # Try to submit with interval above maximum
-            result = await flow.async_step_init(user_input={
-                "selected_counters": [],
-                CONF_COUNTER_UPDATE_INTERVAL_MINUTES: MAX_COUNTER_UPDATE_INTERVAL_MINUTES + 1,
-            })
-            
+            result = await flow.async_step_init(
+                user_input={
+                    "selected_counters": [],
+                    CONF_COUNTER_UPDATE_INTERVAL_MINUTES: MAX_COUNTER_UPDATE_INTERVAL_MINUTES + 1,
+                }
+            )
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "init"
@@ -312,12 +343,18 @@ class TestCEMOptionsFlow:
         """Test that non-integer interval shows error."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
-             patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+            patch(
+                "custom_components.cem_monitor.config_flow._fetch_objects_tree",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -337,17 +374,19 @@ class TestCEMOptionsFlow:
                     },
                 },
             }
-            
+
             # First call to show form
             result = await flow.async_step_init()
             assert result["type"] == "form"
-            
+
             # Try to submit with non-integer interval
-            result = await flow.async_step_init(user_input={
-                "selected_counters": [],
-                CONF_COUNTER_UPDATE_INTERVAL_MINUTES: "not_a_number",
-            })
-            
+            result = await flow.async_step_init(
+                user_input={
+                    "selected_counters": [],
+                    CONF_COUNTER_UPDATE_INTERVAL_MINUTES: "not_a_number",
+                }
+            )
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "init"
@@ -359,12 +398,18 @@ class TestCEMOptionsFlow:
         """Test that None interval is handled."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
-             patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+            patch(
+                "custom_components.cem_monitor.config_flow._fetch_objects_tree",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -384,72 +429,93 @@ class TestCEMOptionsFlow:
                     },
                 },
             }
-            
+
             # First call to show form
             result = await flow.async_step_init()
             assert result["type"] == "form"
-            
+
             # Try to submit with None interval (should use default)
-            result = await flow.async_step_init(user_input={
-                "selected_counters": [],
-                CONF_COUNTER_UPDATE_INTERVAL_MINUTES: None,
-            })
-            
+            result = await flow.async_step_init(
+                user_input={
+                    "selected_counters": [],
+                    CONF_COUNTER_UPDATE_INTERVAL_MINUTES: None,
+                }
+            )
+
             # Should succeed and use default
             assert result["type"] == "create_entry"
-            assert result["data"][CONF_COUNTER_UPDATE_INTERVAL_MINUTES] == DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
+            assert (
+                result["data"][CONF_COUNTER_UPDATE_INTERVAL_MINUTES]
+                == DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
+            )
 
     @pytest.mark.asyncio
-    async def test_auth_failure_401_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
+    async def test_auth_failure_401_during_options_flow(
+        self, mock_hass, mock_entry, mock_auth_result
+    ):
         """Test 401 error during options flow authentication."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication failure
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             from aiohttp import RequestInfo
-            request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+
+            request_info = RequestInfo(
+                url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+            )
             mock_client.authenticate = AsyncMock(
                 side_effect=ClientResponseError(request_info, None, status=401)
             )
-            
+
             result = await flow.async_step_init()
-            
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "init"
             assert result["errors"]["base"] == "invalid_auth"
 
     @pytest.mark.asyncio
-    async def test_auth_failure_403_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
+    async def test_auth_failure_403_during_options_flow(
+        self, mock_hass, mock_entry, mock_auth_result
+    ):
         """Test 403 error during options flow authentication."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication failure
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             from aiohttp import RequestInfo
-            request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+
+            request_info = RequestInfo(
+                url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+            )
             mock_client.authenticate = AsyncMock(
                 side_effect=ClientResponseError(request_info, None, status=403)
             )
-            
+
             result = await flow.async_step_init()
-            
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "init"
@@ -462,53 +528,69 @@ class TestCEMOptionsFlow:
         entry.data = {}  # No credentials
         entry.options = {}
         entry.entry_id = "test_entry_id"
-        
+
         flow = CEMOptionsFlow(entry)
         flow.hass = mock_hass
-        
+
         result = await flow.async_step_init()
-        
+
         # Should show form with error
         assert result["type"] == "form"
         assert result["step_id"] == "init"
         assert result["errors"]["base"] == "missing_credentials"
 
     @pytest.mark.asyncio
-    async def test_tree_fetch_failure_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
+    async def test_tree_fetch_failure_during_options_flow(
+        self, mock_hass, mock_entry, mock_auth_result
+    ):
         """Test tree fetch failure during options flow."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication success but tree fetch failure
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
-             patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+            patch(
+                "custom_components.cem_monitor.config_flow._fetch_objects_tree",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             mock_client.authenticate = AsyncMock(return_value=mock_auth_result)
             mock_fetch.side_effect = Exception("Tree fetch failed")
-            
+
             result = await flow.async_step_init()
-            
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "init"
             assert result["errors"]["base"] == "fetch_failed"
 
     @pytest.mark.asyncio
-    async def test_invalid_counter_selection_during_options_flow(self, mock_hass, mock_entry, mock_auth_result):
+    async def test_invalid_counter_selection_during_options_flow(
+        self, mock_hass, mock_entry, mock_auth_result
+    ):
         """Test invalid counter selection during options flow."""
         flow = CEMOptionsFlow(mock_entry)
         flow.hass = mock_hass
-        
+
         # Mock authentication and tree fetch
-        with patch('custom_components.cem_monitor.config_flow._create_session') as mock_create_session, \
-             patch('custom_components.cem_monitor.config_flow.CEMClient') as mock_client_class, \
-             patch('custom_components.cem_monitor.config_flow._fetch_objects_tree', new_callable=AsyncMock) as mock_fetch:
-            
+        with (
+            patch(
+                "custom_components.cem_monitor.config_flow._create_session"
+            ) as mock_create_session,
+            patch("custom_components.cem_monitor.config_flow.CEMClient") as mock_client_class,
+            patch(
+                "custom_components.cem_monitor.config_flow._fetch_objects_tree",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
             mock_session = MagicMock()
             mock_create_session.return_value = mock_session
             mock_client = AsyncMock()
@@ -528,19 +610,20 @@ class TestCEMOptionsFlow:
                     },
                 },
             }
-            
+
             # First call to show form
             result = await flow.async_step_init()
             assert result["type"] == "form"
-            
+
             # Try to submit with invalid counter selection
-            result = await flow.async_step_init(user_input={
-                "selected_counters": ["invalid"],
-                CONF_COUNTER_UPDATE_INTERVAL_MINUTES: 30,
-            })
-            
+            result = await flow.async_step_init(
+                user_input={
+                    "selected_counters": ["invalid"],
+                    CONF_COUNTER_UPDATE_INTERVAL_MINUTES: 30,
+                }
+            )
+
             # Should show form with error
             assert result["type"] == "form"
             assert result["step_id"] == "init"
             assert result["errors"]["base"] == "invalid_counter_selection"
-

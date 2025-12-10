@@ -19,11 +19,11 @@ slug_text = cem_utils_module.slug_text
 ms_to_iso = cem_utils_module.ms_to_iso
 
 # Import submodules
-from . import retry, discovery
+from . import discovery, retry
+from .discovery import select_water_var_ids
 
 # Re-export from submodules
-from .retry import is_401_error, is_retryable_error, async_retry_with_backoff
-from .discovery import select_water_var_ids
+from .retry import async_retry_with_backoff, is_401_error, is_retryable_error
 
 __all__ = [
     # Functions from utils.py
@@ -42,4 +42,3 @@ __all__ = [
     "async_retry_with_backoff",
     "select_water_var_ids",
 ]
-

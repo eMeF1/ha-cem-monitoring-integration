@@ -1,15 +1,16 @@
 """Tests for retry logic and error classification."""
+
 import asyncio
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import AsyncMock, patch
-from aiohttp import ClientResponseError, ClientError, ClientConnectorError, ServerTimeoutError
+from aiohttp import ClientConnectorError, ClientResponseError, ServerTimeoutError
 
 # conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.utils.retry import (
-    is_retryable_error,
-    is_401_error,
     async_retry_with_backoff,
-    RetryableError,
+    is_401_error,
+    is_retryable_error,
 )
 
 
@@ -19,7 +20,6 @@ class TestErrorClassification:
     def test_is_retryable_network_errors(self):
         """Test that network errors are retryable."""
         # Create proper ClientConnectorError with OSError
-        import os
         os_error = OSError("Connection failed")
         assert is_retryable_error(ClientConnectorError(None, os_error)) is True
         assert is_retryable_error(ServerTimeoutError()) is True
@@ -79,7 +79,6 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_success_after_retries(self):
         """Test that retry eventually succeeds."""
-        import os
         call_count = 0
 
         async def func():
@@ -96,7 +95,6 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_max_retries_exceeded(self):
         """Test that max retries are respected."""
-        import os
         call_count = 0
 
         async def func():
@@ -114,12 +112,15 @@ class TestRetryWithBackoff:
     async def test_no_retry_on_non_retryable_error(self):
         """Test that non-retryable errors fail immediately."""
         from aiohttp import RequestInfo
+
         call_count = 0
 
         async def func():
             nonlocal call_count
             call_count += 1
-            request_info = RequestInfo(url="http://test.com", method="GET", headers={}, real_url="http://test.com")
+            request_info = RequestInfo(
+                url="http://test.com", method="GET", headers={}, real_url="http://test.com"
+            )
             raise ClientResponseError(request_info, None, status=404)
 
         with pytest.raises(ClientResponseError):
@@ -130,7 +131,6 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_exponential_backoff_timing(self):
         """Test that backoff delays increase exponentially."""
-        import os
         delays = []
         call_count = 0
 
@@ -142,6 +142,7 @@ class TestRetryWithBackoff:
             return "success"
 
         with patch("asyncio.sleep") as mock_sleep:
+
             async def sleep_side_effect(delay):
                 delays.append(delay)
 
@@ -160,7 +161,6 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_max_delay_respected(self):
         """Test that max delay is not exceeded."""
-        import os
         delays = []
         call_count = 0
 
@@ -172,6 +172,7 @@ class TestRetryWithBackoff:
             return "success"
 
         with patch("asyncio.sleep") as mock_sleep:
+
             async def sleep_side_effect(delay):
                 delays.append(delay)
 
@@ -192,7 +193,6 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_jitter_added(self):
         """Test that jitter adds randomness to delays."""
-        import os
         delays = []
         call_count = 0
 
@@ -204,14 +204,13 @@ class TestRetryWithBackoff:
             return "success"
 
         with patch("asyncio.sleep") as mock_sleep:
+
             async def sleep_side_effect(delay):
                 delays.append(delay)
 
             mock_sleep.side_effect = sleep_side_effect
 
-            await async_retry_with_backoff(
-                func, max_retries=3, initial_delay=1.0, jitter=True
-            )
+            await async_retry_with_backoff(func, max_retries=3, initial_delay=1.0, jitter=True)
 
             # With jitter, delay should be between 1.0 and 1.25 (1.0 + 25%)
             assert len(delays) == 1
@@ -220,7 +219,6 @@ class TestRetryWithBackoff:
     @pytest.mark.asyncio
     async def test_context_logging(self):
         """Test that context is included in retry logging."""
-        import os
         call_count = 0
 
         async def func():
@@ -240,4 +238,3 @@ class TestRetryWithBackoff:
             assert len(debug_calls) > 0
             # At least one call should mention the context
             assert any("TestContext" in str(call) for call in debug_calls)
-

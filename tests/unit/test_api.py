@@ -1,38 +1,41 @@
 """Tests for API client with mocked HTTP responses."""
-import pytest
+
 from unittest.mock import AsyncMock, MagicMock, patch
-from aiohttp import ClientResponseError, ClientConnectorError, ClientSession
+
+import pytest
+from aiohttp import ClientConnectorError, ClientResponseError
 from aiohttp.client_exceptions import ServerTimeoutError
 
 # conftest.py handles path setup and Home Assistant mocking
-from custom_components.cem_monitor.api import CEMClient, AuthResult
+from custom_components.cem_monitor.api import AuthResult, CEMClient
 
 
 class AsyncContextManager:
     """Async context manager that can be configured with a response.
-    
+
     Python 3.11 compatible: ensures proper exception handling and
     return value handling for async context managers.
     """
+
     def __init__(self):
         self._response = None
         self._side_effect = None
-    
+
     def set_response(self, response):
         """Set the response that will be returned by __aenter__."""
         self._response = response
         # Clear side_effect when setting response
         self._side_effect = None
-    
+
     def set_side_effect(self, side_effect):
         """Set a side effect function for __aenter__."""
         self._side_effect = side_effect
         # Clear response when setting side_effect
         self._response = None
-    
+
     async def __aenter__(self):
         """Enter the async context manager.
-        
+
         Python 3.11: ensures proper handling of side effects and responses.
         """
         if self._side_effect is not None:
@@ -40,10 +43,10 @@ class AsyncContextManager:
             # Python 3.11: exceptions will propagate naturally
             return await self._side_effect()
         return self._response
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Exit the async context manager.
-        
+
         Python 3.11: properly handles exceptions and returns None.
         """
         # Return None to indicate exceptions should not be suppressed
@@ -53,26 +56,26 @@ class AsyncContextManager:
 @pytest.fixture
 def mock_session():
     """Create a mock aiohttp session.
-    
+
     Python 3.11 compatible: uses AsyncMock without strict spec to avoid
     issues with spec validation in Python 3.11.
     """
     # Python 3.11: Avoid using spec=ClientSession directly as it may cause issues
     # Instead, create AsyncMock and configure methods manually
     session = AsyncMock()
-    
+
     # Create context managers that can be configured
     post_context = AsyncContextManager()
     get_context = AsyncContextManager()
-    
+
     # Make post and get return the context managers
     session.post = MagicMock(return_value=post_context)
     session.get = MagicMock(return_value=get_context)
-    
+
     # Store references so tests can configure them
     session._post_context = post_context
     session._get_context = get_context
-    
+
     return session
 
 
@@ -91,8 +94,12 @@ class TestAuthenticate:
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.cookies = {"CEMAPI": MagicMock(value="test_cookie")}
-        mock_response.text = AsyncMock(return_value='{"access_token": "token123", "valid_to": 1234567890}')
-        mock_response.json = AsyncMock(return_value={"access_token": "token123", "valid_to": 1234567890})
+        mock_response.text = AsyncMock(
+            return_value='{"access_token": "token123", "valid_to": 1234567890}'
+        )
+        mock_response.json = AsyncMock(
+            return_value={"access_token": "token123", "valid_to": 1234567890}
+        )
         mock_response.raise_for_status = MagicMock()
 
         mock_session._post_context.set_response(mock_response)
@@ -117,8 +124,12 @@ class TestAuthenticate:
             mock_response = AsyncMock()
             mock_response.status = 200
             mock_response.cookies = {"CEMAPI": MagicMock(value="cookie")}
-            mock_response.text = AsyncMock(return_value='{"access_token": "token", "valid_to": 1234567890}')
-            mock_response.json = AsyncMock(return_value={"access_token": "token", "valid_to": 1234567890})
+            mock_response.text = AsyncMock(
+                return_value='{"access_token": "token", "valid_to": 1234567890}'
+            )
+            mock_response.json = AsyncMock(
+                return_value={"access_token": "token", "valid_to": 1234567890}
+            )
             mock_response.raise_for_status = MagicMock()
             return mock_response
 
@@ -133,12 +144,15 @@ class TestAuthenticate:
     async def test_authenticate_no_retry_on_401(self, client, mock_session):
         """Test that 401 errors are not retried."""
         from aiohttp import RequestInfo
+
         call_count = 0
 
         async def post_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+            request_info = RequestInfo(
+                url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+            )
             raise ClientResponseError(request_info, None, status=401)
 
         mock_session._post_context.set_side_effect(post_side_effect)
@@ -215,7 +229,6 @@ class TestGetObjects:
     @pytest.mark.asyncio
     async def test_get_objects_retry_on_connection_error(self, client, mock_session):
         """Test that connection errors are retried."""
-        import os
         call_count = 0
 
         async def get_side_effect(*args, **kwargs):
@@ -225,7 +238,7 @@ class TestGetObjects:
                 raise ClientConnectorError(None, OSError("Connection failed"))
             mock_response = AsyncMock()
             mock_response.status = 200
-            mock_response.text = AsyncMock(return_value='[]')
+            mock_response.text = AsyncMock(return_value="[]")
             mock_response.json = AsyncMock(return_value=[])
             mock_response.raise_for_status = MagicMock()
             return mock_response
@@ -247,9 +260,7 @@ class TestGetCounterReading:
         mock_response = AsyncMock()
         mock_response.status = 200
         mock_response.text = AsyncMock(return_value='[{"value": 123.45, "timestamp": 1234567890}]')
-        mock_response.json = AsyncMock(
-            return_value=[{"value": 123.45, "timestamp": 1234567890}]
-        )
+        mock_response.json = AsyncMock(return_value=[{"value": 123.45, "timestamp": 1234567890}])
         mock_response.raise_for_status = MagicMock()
 
         mock_session._get_context.set_response(mock_response)
@@ -263,12 +274,15 @@ class TestGetCounterReading:
     async def test_get_counter_reading_no_retry_on_404(self, client, mock_session):
         """Test that 404 errors are not retried."""
         from aiohttp import RequestInfo
+
         call_count = 0
 
         async def get_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
-            request_info = RequestInfo(url="http://test.com", method="GET", headers={}, real_url="http://test.com")
+            request_info = RequestInfo(
+                url="http://test.com", method="GET", headers={}, real_url="http://test.com"
+            )
             raise ClientResponseError(request_info, None, status=404)
 
         mock_session._get_context.set_side_effect(get_side_effect)
@@ -368,7 +382,7 @@ class TestGetCounterReadingsBatch:
 
             assert len(result) == 0
             assert result == {}
-            
+
             # Verify warning is logged for empty response with requested var_ids
             mock_logger.warning.assert_called_once()
             # Check the format string and arguments
@@ -441,7 +455,9 @@ class TestGetCounterReadingsBatch:
                 raise ServerTimeoutError()
             mock_response = AsyncMock()
             mock_response.status = 200
-            mock_response.text = AsyncMock(return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]')
+            mock_response.text = AsyncMock(
+                return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]'
+            )
             mock_response.json = AsyncMock(
                 return_value=[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]
             )
@@ -467,7 +483,9 @@ class TestGetCounterReadingsBatch:
                 raise ClientResponseError(None, None, status=500)
             mock_response = AsyncMock()
             mock_response.status = 200
-            mock_response.text = AsyncMock(return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]')
+            mock_response.text = AsyncMock(
+                return_value='[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]'
+            )
             mock_response.json = AsyncMock(
                 return_value=[{"value": 123.45, "timestamp": 1234567890, "var_id": 104437}]
             )
@@ -520,7 +538,10 @@ class TestGetCounterReadingsBatch:
     async def test_get_counter_readings_batch_401_error(self, client, mock_session):
         """Test that 401 error in batch request is raised (not retried at API level)."""
         from aiohttp import RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+
+        request_info = RequestInfo(
+            url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+        )
         call_count = 0
 
         async def post_side_effect(*args, **kwargs):
@@ -537,16 +558,21 @@ class TestGetCounterReadingsBatch:
         assert call_count == 1  # API client doesn't retry 401, coordinator handles it
 
     @pytest.mark.asyncio
-    async def test_get_counter_readings_batch_401_then_success_after_token_refresh(self, client, mock_session):
+    async def test_get_counter_readings_batch_401_then_success_after_token_refresh(
+        self, client, mock_session
+    ):
         """Test batch request that fails with 401, then succeeds after token refresh.
-        
+
         Note: This test simulates the coordinator-level retry pattern where:
         1. Batch API call returns 401
         2. Coordinator refreshes token
         3. Batch API call retried with new token succeeds
         """
         from aiohttp import RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+
+        request_info = RequestInfo(
+            url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+        )
         call_count = 0
 
         async def post_side_effect(*args, **kwargs):
@@ -571,13 +597,15 @@ class TestGetCounterReadingsBatch:
 
         # Simulate coordinator-level retry pattern
         from custom_components.cem_monitor.utils.retry import is_401_error
-        
+
         try:
             result = await client.get_counter_readings_batch([104437], "old_token", "old_cookie")
         except ClientResponseError as err:
             if is_401_error(err):
                 # Coordinator would refresh token here, then retry
-                result = await client.get_counter_readings_batch([104437], "new_token", "new_cookie")
+                result = await client.get_counter_readings_batch(
+                    [104437], "new_token", "new_cookie"
+                )
             else:
                 raise
 
@@ -586,10 +614,15 @@ class TestGetCounterReadingsBatch:
         assert call_count == 2  # Initial call + retry after token refresh
 
     @pytest.mark.asyncio
-    async def test_get_counter_readings_batch_401_persists_after_refresh(self, client, mock_session):
+    async def test_get_counter_readings_batch_401_persists_after_refresh(
+        self, client, mock_session
+    ):
         """Test batch request that fails with 401 even after token refresh."""
         from aiohttp import RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
+
+        request_info = RequestInfo(
+            url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+        )
         call_count = 0
 
         async def post_side_effect(*args, **kwargs):
@@ -602,9 +635,9 @@ class TestGetCounterReadingsBatch:
 
         # Simulate coordinator-level retry pattern
         from custom_components.cem_monitor.utils.retry import is_401_error
-        
+
         try:
-            result = await client.get_counter_readings_batch([104437], "old_token", "old_cookie")
+            await client.get_counter_readings_batch([104437], "old_token", "old_cookie")
         except ClientResponseError as err:
             if is_401_error(err):
                 # Coordinator would refresh token here, then retry
@@ -615,4 +648,3 @@ class TestGetCounterReadingsBatch:
                 assert call_count == 2  # Initial call + retry after token refresh
             else:
                 raise
-

@@ -1,9 +1,7 @@
 """Tests for object name resolution with parent hierarchy."""
-import pytest
 
 # conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.config_flow import _resolve_object_name
-from custom_components.cem_monitor.utils import get_str_nonempty
 
 
 class TestObjectNameResolution:
@@ -18,9 +16,9 @@ class TestObjectNameResolution:
         mis_name_by_id = {
             1: "Object 1",
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         assert name == "Object 1"
         assert source_id == 1
 
@@ -35,9 +33,9 @@ class TestObjectNameResolution:
             1: "Parent Object",
             2: None,  # No name
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         assert name == "Parent Object"
         assert source_id == 1  # Source is parent
 
@@ -54,9 +52,9 @@ class TestObjectNameResolution:
             2: None,  # No name
             3: None,  # No name
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         assert name == "Root Object"
         assert source_id == 1  # Source is root
 
@@ -71,9 +69,9 @@ class TestObjectNameResolution:
             1: None,  # No name
             2: None,  # No name
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should return None, None because of circular reference
         assert name is None
         assert source_id is None
@@ -87,9 +85,9 @@ class TestObjectNameResolution:
         mis_name_by_id = {
             1: None,  # No name
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should return None, None because no name and no valid parent
         assert name is None
         assert source_id is None
@@ -103,9 +101,9 @@ class TestObjectNameResolution:
         mis_name_by_id = {
             1: None,  # No name
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should return None, None because no name and no parent
         assert name is None
         assert source_id is None
@@ -115,9 +113,9 @@ class TestObjectNameResolution:
         mis_id = None
         raw_by_mis = {}
         mis_name_by_id = {}
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should return None, None immediately
         assert name is None
         assert source_id is None
@@ -131,9 +129,9 @@ class TestObjectNameResolution:
         mis_name_by_id = {
             2: None,  # No name
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should return None, None because parent doesn't exist
         assert name is None
         assert source_id is None
@@ -151,7 +149,7 @@ class TestObjectNameResolution:
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
         assert name == "Name 1"
         assert source_id == 1
-        
+
         # Test mis_name
         raw_by_mis = {
             2: {"mis_id": 2, "mis_name": "Name 2"},
@@ -162,7 +160,7 @@ class TestObjectNameResolution:
         name, source_id = _resolve_object_name(2, raw_by_mis, mis_name_by_id)
         assert name == "Name 2"
         assert source_id == 2
-        
+
         # Test name
         raw_by_mis = {
             3: {"mis_id": 3, "name": "Name 3"},
@@ -185,9 +183,9 @@ class TestObjectNameResolution:
             1: "Parent Object",
             2: "",  # Empty string should be treated as None
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should climb to parent because empty string is not valid
         assert name == "Parent Object"
         assert source_id == 1
@@ -203,9 +201,9 @@ class TestObjectNameResolution:
             1: "Parent Object",
             2: "   ",  # Whitespace only should be treated as None
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should climb to parent because whitespace-only is not valid
         assert name == "Parent Object"
         assert source_id == 1
@@ -221,9 +219,9 @@ class TestObjectNameResolution:
             1: "Parent Object",
             2: None,
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should return None, None because parent ID is invalid
         assert name is None
         assert source_id is None
@@ -245,9 +243,9 @@ class TestObjectNameResolution:
             4: None,
             5: None,
         }
-        
+
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
-        
+
         # Should find "Branch" at level 3
         assert name == "Branch"
         assert source_id == 3
@@ -267,4 +265,3 @@ class TestObjectNameResolution:
         name, source_id = _resolve_object_name(mis_id, raw_by_mis, mis_name_by_id)
         assert name == "Parent 1"
         assert source_id == 1
-

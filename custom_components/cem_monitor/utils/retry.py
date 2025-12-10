@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import Any, Callable, TypeVar, Awaitable
+from collections.abc import Awaitable
+from typing import Callable, TypeVar
 
-from aiohttp import ClientResponseError, ClientError, ClientTimeout
+from aiohttp import ClientError, ClientResponseError
 from aiohttp.client_exceptions import ClientConnectorError, ServerTimeoutError
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,11 +23,11 @@ class RetryableError(Exception):
 def is_retryable_error(error: Exception) -> bool:
     """
     Determine if an error is retryable.
-    
+
     Retryable errors:
     - Network errors (ClientConnectorError, ServerTimeoutError, asyncio.TimeoutError)
     - HTTP 5xx server errors
-    
+
     Non-retryable errors:
     - HTTP 401 (unauthorized) - should trigger token refresh instead
     - HTTP 404 (not found)
@@ -43,15 +44,15 @@ def is_retryable_error(error: Exception) -> bool:
         # 401, 404, 400, and other 4xx are not retryable
         if 400 <= status < 500:
             return False
-    
+
     # Network and connection errors
     if isinstance(error, (ClientConnectorError, ServerTimeoutError, asyncio.TimeoutError)):
         return True
-    
+
     # General aiohttp client errors (network issues) - but NOT ClientResponseError (already handled above)
     if isinstance(error, ClientError) and not isinstance(error, ClientResponseError):
         return True
-    
+
     # Non-network errors are not retryable
     return False
 
@@ -74,7 +75,7 @@ async def async_retry_with_backoff(
 ) -> T:
     """
     Retry an async function with exponential backoff.
-    
+
     Args:
         func: Async function to retry (no arguments)
         max_retries: Maximum number of retry attempts (default: 3)
@@ -83,22 +84,22 @@ async def async_retry_with_backoff(
         exponential_base: Base for exponential backoff (default: 2.0)
         jitter: Add random jitter to prevent thundering herd (default: True)
         context: Context string for logging (default: "")
-    
+
     Returns:
         Result of the function call
-    
+
     Raises:
         Last exception if all retries are exhausted
         RetryableError if error is not retryable
     """
     last_exception: Exception | None = None
-    
+
     for attempt in range(max_retries + 1):
         try:
             return await func()
         except Exception as err:
             last_exception = err
-            
+
             # Check if error is retryable
             if not is_retryable_error(err):
                 _LOGGER.debug(
@@ -109,7 +110,7 @@ async def async_retry_with_backoff(
                     err,
                 )
                 raise
-            
+
             # If this was the last attempt, raise the error
             if attempt >= max_retries:
                 try:
@@ -123,15 +124,15 @@ async def async_retry_with_backoff(
                     err_str,
                 )
                 raise
-            
+
             # Calculate delay with exponential backoff
-            delay = min(initial_delay * (exponential_base ** attempt), max_delay)
-            
+            delay = min(initial_delay * (exponential_base**attempt), max_delay)
+
             # Add jitter (0-25% random variation)
             if jitter:
                 jitter_amount = delay * 0.25 * random.random()
                 delay = delay + jitter_amount
-            
+
             try:
                 err_str = str(err)
             except Exception:
@@ -144,11 +145,10 @@ async def async_retry_with_backoff(
                 delay,
                 err_str,
             )
-            
+
             await asyncio.sleep(delay)
-    
+
     # Should never reach here, but just in case
     if last_exception:
         raise last_exception
     raise RuntimeError("Unexpected error in retry logic")
-

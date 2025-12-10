@@ -1,23 +1,26 @@
 """Tests for batch counter refresh functionality."""
-import pytest
+
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
 import time
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from custom_components.cem_monitor.api import AuthResult, CEMClient
+from custom_components.cem_monitor.coordinators.base import CEMAuthCoordinator
 
 # conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.coordinators.counter_reading import CEMCounterReadingCoordinator
-from custom_components.cem_monitor.api import CEMClient, AuthResult
-from custom_components.cem_monitor.coordinators.base import CEMAuthCoordinator
 
 
 class AsyncCreateTaskMock:
     """Mock for async_create_task that properly handles coroutines and tracks calls."""
-    
+
     def __init__(self):
         self._call_count = 0
         self._calls = []
         self._tasks = []
-    
+
     def __call__(self, coro):
         """Handle async_create_task call (synchronous, like Home Assistant)."""
         self._call_count += 1
@@ -37,12 +40,12 @@ class AsyncCreateTaskMock:
                 pass
         # Return a mock task object
         return MagicMock()
-    
+
     @property
     def called(self):
         """Check if the mock was called."""
         return self._call_count > 0
-    
+
     @property
     def call_count(self):
         """Get the number of calls."""
@@ -94,7 +97,9 @@ def mock_auth_coordinator():
 @pytest.fixture
 def counter_coordinator(mock_hass, mock_client, mock_auth_coordinator):
     """Create a counter reading coordinator."""
-    coord = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=104437)
+    coord = CEMCounterReadingCoordinator(
+        mock_hass, mock_client, mock_auth_coordinator, var_id=104437
+    )
     coord.data = {
         "value": 100.0,
         "timestamp_ms": 1234567890,
@@ -110,9 +115,10 @@ class TestBatchRefresh:
     """Test batch refresh callback functionality."""
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_success(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_success(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test successful batch refresh updates all coordinators."""
-        from custom_components.cem_monitor import async_setup_entry
 
         # Setup bag with coordinators
         bag = {
@@ -129,15 +135,21 @@ class TestBatchRefresh:
         }
 
         # Create second coordinator
-        coord2 = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=102496)
-        coord2.data = {"value": 200.0, "timestamp_ms": 1234567800, "timestamp_iso": None, "fetched_at": 1234567800}
+        coord2 = CEMCounterReadingCoordinator(
+            mock_hass, mock_client, mock_auth_coordinator, var_id=102496
+        )
+        coord2.data = {
+            "value": 200.0,
+            "timestamp_ms": 1234567800,
+            "timestamp_iso": None,
+            "fetched_at": 1234567800,
+        }
         coord2.async_update_listeners = MagicMock()
         bag["counter_readings"][102496] = coord2
 
         # Simulate the refresh callback
-        from custom_components.cem_monitor.const import DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
-        from datetime import timedelta
         import time
+
         from custom_components.cem_monitor.utils import ms_to_iso
 
         async def _do_batch_refresh():
@@ -158,7 +170,9 @@ class TestBatchRefresh:
                 return
 
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                batch_results = await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
 
                 for var_id, coord in counter_map_local.items():
                     if var_id in batch_results:
@@ -171,7 +185,7 @@ class TestBatchRefresh:
                         }
                         coord.async_update_listeners()
 
-            except Exception as err:
+            except Exception:
                 pass
 
         await _do_batch_refresh()
@@ -191,7 +205,9 @@ class TestBatchRefresh:
         assert coord2.async_update_listeners.called
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_fallback_on_failure(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_fallback_on_failure(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test that batch refresh falls back to individual requests on failure."""
         bag = {
             "client": mock_client,
@@ -229,9 +245,11 @@ class TestBatchRefresh:
                 return
 
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
                 # ... update coordinators ...
-            except Exception as err:
+            except Exception:
                 # Fallback to individual requests
                 for coord in counter_map_local.values():
                     mock_hass.async_create_task(coord.async_request_refresh())
@@ -245,7 +263,9 @@ class TestBatchRefresh:
         assert mock_hass.async_create_task.called
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_missing_var_id_fallback(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_missing_var_id_fallback(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test that missing var_ids in batch response trigger individual requests."""
         bag = {
             "client": mock_client,
@@ -262,8 +282,15 @@ class TestBatchRefresh:
         mock_client.get_counter_reading.return_value = {"value": 456.78, "timestamp_ms": 1234567900}
 
         # Create second coordinator
-        coord2 = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=102496)
-        coord2.data = {"value": 200.0, "timestamp_ms": 1234567800, "timestamp_iso": None, "fetched_at": 1234567800}
+        coord2 = CEMCounterReadingCoordinator(
+            mock_hass, mock_client, mock_auth_coordinator, var_id=102496
+        )
+        coord2.data = {
+            "value": 200.0,
+            "timestamp_ms": 1234567800,
+            "timestamp_iso": None,
+            "fetched_at": 1234567800,
+        }
         coord2.async_update_listeners = MagicMock()
         coord2.async_request_refresh = AsyncMock()
         bag["counter_readings"][102496] = coord2
@@ -289,7 +316,9 @@ class TestBatchRefresh:
                 return
 
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                batch_results = await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
 
                 for var_id, coord in counter_map_local.items():
                     if var_id in batch_results:
@@ -305,7 +334,7 @@ class TestBatchRefresh:
                         # Missing var_id - fallback to individual request
                         mock_hass.async_create_task(coord.async_request_refresh())
 
-            except Exception as err:
+            except Exception:
                 pass
 
         await _do_batch_refresh()
@@ -321,7 +350,9 @@ class TestBatchRefresh:
         assert mock_hass.async_create_task.called
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_empty_counter_map(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator):
+    async def test_batch_refresh_empty_counter_map(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator
+    ):
         """Test batch refresh with empty counter_map."""
         bag = {
             "client": mock_client,
@@ -345,7 +376,9 @@ class TestBatchRefresh:
         mock_client.get_counter_readings_batch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_no_auth_token(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_no_auth_token(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test batch refresh falls back when no auth token available."""
         bag = {
             "client": mock_client,
@@ -382,7 +415,9 @@ class TestBatchRefresh:
         assert mock_hass.async_create_task.called
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_401_error_triggers_token_refresh(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_401_error_triggers_token_refresh(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test that 401 error during batch refresh triggers token refresh and retry."""
         bag = {
             "client": mock_client,
@@ -392,10 +427,13 @@ class TestBatchRefresh:
         mock_hass.data.setdefault("cem_monitor", {})[mock_entry.entry_id] = bag
 
         from aiohttp import ClientResponseError, RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
-        
+
+        request_info = RequestInfo(
+            url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+        )
+
         call_count = 0
-        
+
         async def batch_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
@@ -404,9 +442,9 @@ class TestBatchRefresh:
                 raise ClientResponseError(request_info, None, status=401)
             # After token refresh, succeed
             return {104437: {"value": 123.45, "timestamp_ms": 1234567890}}
-        
+
         mock_client.get_counter_readings_batch = AsyncMock(side_effect=batch_side_effect)
-        
+
         # Mock token refresh to update token
         async def refresh_side_effect():
             mock_auth_coordinator.token = "new_token"
@@ -415,7 +453,7 @@ class TestBatchRefresh:
                 valid_to_ms=int((time.time() + 3600) * 1000),
                 cookie_value="new_cookie",
             )
-        
+
         mock_auth_coordinator.async_request_refresh = AsyncMock(side_effect=refresh_side_effect)
 
         # Simulate refresh callback with 401 handling
@@ -440,8 +478,10 @@ class TestBatchRefresh:
                 return
 
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
-                
+                batch_results = await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
+
                 for var_id, coord in counter_map_local.items():
                     if var_id in batch_results:
                         reading = batch_results[var_id]
@@ -457,10 +497,14 @@ class TestBatchRefresh:
                     # Refresh token and retry
                     await auth_local.async_request_refresh()
                     token = auth_local.token
-                    cookie = auth_local._last_result.cookie_value if auth_local._last_result else None
-                    
+                    cookie = (
+                        auth_local._last_result.cookie_value if auth_local._last_result else None
+                    )
+
                     try:
-                        batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                        batch_results = await client_local.get_counter_readings_batch(
+                            var_ids, token, cookie
+                        )
                         for var_id, coord in counter_map_local.items():
                             if var_id in batch_results:
                                 reading = batch_results[var_id]
@@ -491,7 +535,9 @@ class TestBatchRefresh:
         assert counter_coordinator.async_update_listeners.called
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_network_error_fallback(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_network_error_fallback(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test that network errors during batch refresh fall back to individual requests."""
         bag = {
             "client": mock_client,
@@ -501,8 +547,7 @@ class TestBatchRefresh:
         mock_hass.data.setdefault("cem_monitor", {})[mock_entry.entry_id] = bag
 
         from aiohttp.client_exceptions import ClientConnectorError
-        import os
-        
+
         # Mock network error
         mock_client.get_counter_readings_batch.side_effect = ClientConnectorError(
             None, OSError("Connection failed")
@@ -527,9 +572,11 @@ class TestBatchRefresh:
                 return
 
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
                 # ... update coordinators ...
-            except Exception as err:
+            except Exception:
                 # Fallback to individual requests on any error
                 for coord in counter_map_local.values():
                     mock_hass.async_create_task(coord.async_request_refresh())
@@ -542,7 +589,9 @@ class TestBatchRefresh:
         assert mock_hass.async_create_task.called
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_token_refresh_failure(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_token_refresh_failure(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test that token refresh failure during batch refresh falls back to individual requests."""
         bag = {
             "client": mock_client,
@@ -552,17 +601,20 @@ class TestBatchRefresh:
         mock_hass.data.setdefault("cem_monitor", {})[mock_entry.entry_id] = bag
 
         from aiohttp import ClientResponseError, RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
-        
+
+        request_info = RequestInfo(
+            url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+        )
+
         # Mock 401 error
         mock_client.get_counter_readings_batch.side_effect = ClientResponseError(
             request_info, None, status=401
         )
-        
+
         # Mock token refresh failure (token remains None)
         async def refresh_side_effect():
             mock_auth_coordinator.token = None  # Refresh fails
-        
+
         mock_auth_coordinator.async_request_refresh = AsyncMock(side_effect=refresh_side_effect)
 
         # Simulate refresh callback
@@ -589,7 +641,9 @@ class TestBatchRefresh:
                 return
 
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
                 # ... update coordinators ...
             except Exception as err:
                 if is_401_error(err):
@@ -601,10 +655,14 @@ class TestBatchRefresh:
                         for coord in counter_map_local.values():
                             mock_hass.async_create_task(coord.async_request_refresh())
                         return
-                    
-                    cookie = auth_local._last_result.cookie_value if auth_local._last_result else None
+
+                    cookie = (
+                        auth_local._last_result.cookie_value if auth_local._last_result else None
+                    )
                     try:
-                        batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                        await client_local.get_counter_readings_batch(
+                            var_ids, token, cookie
+                        )
                         # ... update coordinators ...
                     except Exception:
                         # Fallback to individual requests
@@ -625,12 +683,18 @@ class TestBatchRefresh:
         assert mock_hass.async_create_task.called
 
     @pytest.mark.asyncio
-    async def test_batch_refresh_partial_response_with_fallback(self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator):
+    async def test_batch_refresh_partial_response_with_fallback(
+        self, mock_hass, mock_entry, mock_client, mock_auth_coordinator, counter_coordinator
+    ):
         """Test partial batch response where some var_ids are missing triggers individual requests."""
         bag = {
             "client": mock_client,
             "coordinator": mock_auth_coordinator,
-            "counter_readings": {104437: counter_coordinator, 102496: counter_coordinator, 102497: counter_coordinator},
+            "counter_readings": {
+                104437: counter_coordinator,
+                102496: counter_coordinator,
+                102497: counter_coordinator,
+            },
         }
         mock_hass.data.setdefault("cem_monitor", {})[mock_entry.entry_id] = bag
 
@@ -641,12 +705,16 @@ class TestBatchRefresh:
         }
 
         # Create additional coordinators
-        coord2 = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=102496)
+        coord2 = CEMCounterReadingCoordinator(
+            mock_hass, mock_client, mock_auth_coordinator, var_id=102496
+        )
         coord2.async_update_listeners = MagicMock()
         coord2.async_request_refresh = AsyncMock()
         bag["counter_readings"][102496] = coord2
 
-        coord3 = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=102497)
+        coord3 = CEMCounterReadingCoordinator(
+            mock_hass, mock_client, mock_auth_coordinator, var_id=102497
+        )
         coord3.async_update_listeners = MagicMock()
         coord3.async_request_refresh = AsyncMock()
         bag["counter_readings"][102497] = coord3
@@ -672,7 +740,9 @@ class TestBatchRefresh:
                 return
 
             try:
-                batch_results = await client_local.get_counter_readings_batch(var_ids, token, cookie)
+                batch_results = await client_local.get_counter_readings_batch(
+                    var_ids, token, cookie
+                )
 
                 for var_id, coord in counter_map_local.items():
                     if var_id in batch_results:
@@ -688,7 +758,7 @@ class TestBatchRefresh:
                         # Missing var_id - fallback to individual request
                         mock_hass.async_create_task(coord.async_request_refresh())
 
-            except Exception as err:
+            except Exception:
                 # Fallback to individual requests
                 for coord in counter_map_local.values():
                     mock_hass.async_create_task(coord.async_request_refresh())
@@ -704,4 +774,3 @@ class TestBatchRefresh:
         assert mock_hass.async_create_task.call_count == 2  # Two missing var_ids
         # Note: async_request_refresh may be called directly or via async_create_task,
         # the important thing is that async_create_task was called for fallback
-

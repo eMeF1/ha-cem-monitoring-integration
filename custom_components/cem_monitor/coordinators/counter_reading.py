@@ -14,6 +14,7 @@ Update Frequency:
 - Updates are triggered by the integration's batch refresh mechanism
 - Default batch refresh interval: 30 minutes (configurable via integration options)
 """
+
 from __future__ import annotations
 
 import logging
@@ -21,19 +22,21 @@ import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import UpdateFailed
 
-from .base import CEMBaseCoordinator, CEMAuthCoordinator
 from ..api import CEMClient
 from ..const import DOMAIN
 from ..utils import ms_to_iso
+from .base import CEMAuthCoordinator, CEMBaseCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class CEMCounterReadingCoordinator(CEMBaseCoordinator):
     """Fetches counter reading using id=8 for a specific var_id."""
 
-    def __init__(self, hass: HomeAssistant, client: CEMClient, auth: CEMAuthCoordinator, var_id: int) -> None:
+    def __init__(
+        self, hass: HomeAssistant, client: CEMClient, auth: CEMAuthCoordinator, var_id: int
+    ) -> None:
         super().__init__(
             hass,
             logger=_LOGGER,
@@ -71,5 +74,3 @@ class CEMCounterReadingCoordinator(CEMBaseCoordinator):
             "timestamp_iso": ms_to_iso(reading.get("timestamp_ms")),
             "fetched_at": int(time.time() * 1000),  # ensures coordinator data always changes
         }
-
-

@@ -1,9 +1,11 @@
 """Tests for TypesCache with mocked Home Assistant Store."""
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta, timezone
 
-from custom_components.cem_monitor.cache import TypesCache, CACHE_VERSION, CACHE_TTL_DAYS
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from custom_components.cem_monitor.cache import CACHE_TTL_DAYS, CACHE_VERSION, TypesCache
 
 
 @pytest.fixture
@@ -26,7 +28,7 @@ def mock_store():
 @pytest.fixture
 def types_cache(mock_hass, mock_store):
     """Create TypesCache with mocked store."""
-    with patch('custom_components.cem_monitor.cache.Store', return_value=mock_store):
+    with patch("custom_components.cem_monitor.cache.Store", return_value=mock_store):
         cache = TypesCache(mock_hass)
         cache._store = mock_store
         return cache
@@ -39,9 +41,9 @@ class TestTypesCacheLoad:
     async def test_load_cache_miss(self, types_cache, mock_store):
         """Test loading when no cache exists."""
         mock_store.async_load.return_value = None
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert pot_types is None
         assert counter_value_types is None
         assert is_valid is False
@@ -62,9 +64,9 @@ class TestTypesCacheLoad:
                 "1": "Absolutní",
             },
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is True
         assert len(pot_types) == 2
         assert pot_types[1]["jed_zkr"] == "m³"
@@ -83,9 +85,9 @@ class TestTypesCacheLoad:
             "pot_types": {"1": {"pot_id": 1}},
             "counter_value_types": {"0": "Test"},
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is False
         assert pot_types is None
         assert counter_value_types is None
@@ -101,9 +103,9 @@ class TestTypesCacheLoad:
             "pot_types": {"1": {"pot_id": 1}},
             "counter_value_types": {"0": "Test"},
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is True
 
     @pytest.mark.asyncio
@@ -116,9 +118,9 @@ class TestTypesCacheLoad:
             "pot_types": {"1": {"pot_id": 1}},
             "counter_value_types": {"0": "Test"},
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is False
 
     @pytest.mark.asyncio
@@ -131,9 +133,9 @@ class TestTypesCacheLoad:
             # Missing pot_types
             "counter_value_types": {"0": "Test"},
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is False
 
     @pytest.mark.asyncio
@@ -146,9 +148,9 @@ class TestTypesCacheLoad:
             "pot_types": {"1": {"pot_id": 1}},
             # Missing counter_value_types
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is False
 
     @pytest.mark.asyncio
@@ -160,9 +162,9 @@ class TestTypesCacheLoad:
             "pot_types": {"1": {"pot_id": 1}},
             "counter_value_types": {"0": "Test"},
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is False
 
     @pytest.mark.asyncio
@@ -174,9 +176,9 @@ class TestTypesCacheLoad:
             "pot_types": {"1": {"pot_id": 1}},
             "counter_value_types": {"0": "Test"},
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is False
 
     @pytest.mark.asyncio
@@ -195,9 +197,9 @@ class TestTypesCacheLoad:
                 "0": "Valid",  # Valid
             },
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is True
         assert len(pot_types) == 1
         assert 1 in pot_types
@@ -215,9 +217,9 @@ class TestTypesCacheLoad:
             "pot_types": {},
             "counter_value_types": {},
         }
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is True
         assert pot_types == {}
         assert counter_value_types == {}
@@ -226,9 +228,9 @@ class TestTypesCacheLoad:
     async def test_load_error_handling(self, types_cache, mock_store):
         """Test error handling during cache load."""
         mock_store.async_load.side_effect = ValueError("Invalid JSON")
-        
+
         pot_types, counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is False
         assert pot_types is None
         assert counter_value_types is None
@@ -248,9 +250,9 @@ class TestTypesCacheSave:
             0: "Přírustková",
             1: "Absolutní",
         }
-        
+
         await types_cache.save(pot_types, counter_value_types)
-        
+
         mock_store.async_save.assert_called_once()
         saved_data = mock_store.async_save.call_args[0][0]
         assert saved_data["version"] == CACHE_VERSION
@@ -268,7 +270,7 @@ class TestTypesCacheSave:
     async def test_save_empty_data(self, types_cache, mock_store):
         """Test saving empty data."""
         await types_cache.save({}, {})
-        
+
         mock_store.async_save.assert_called_once()
         saved_data = mock_store.async_save.call_args[0][0]
         assert saved_data["pot_types"] == {}
@@ -279,9 +281,9 @@ class TestTypesCacheSave:
         """Test saving large amounts of data."""
         pot_types = {i: {"pot_id": i, "jed_zkr": f"unit{i}"} for i in range(100)}
         counter_value_types = {i: f"Type{i}" for i in range(10)}
-        
+
         await types_cache.save(pot_types, counter_value_types)
-        
+
         mock_store.async_save.assert_called_once()
         saved_data = mock_store.async_save.call_args[0][0]
         assert len(saved_data["pot_types"]) == 100
@@ -290,8 +292,8 @@ class TestTypesCacheSave:
     @pytest.mark.asyncio
     async def test_save_error_handling(self, types_cache, mock_store):
         """Test error handling during save."""
-        mock_store.async_save.side_effect = IOError("Storage error")
-        
+        mock_store.async_save.side_effect = OSError("Storage error")
+
         # Should not raise exception
         await types_cache.save({1: {"pot_id": 1}}, {0: "Test"})
 
@@ -303,14 +305,14 @@ class TestTypesCacheClear:
     async def test_clear_success(self, types_cache, mock_store):
         """Test successful cache clear."""
         await types_cache.clear()
-        
+
         mock_store.async_remove.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_clear_error_handling(self, types_cache, mock_store):
         """Test error handling during clear."""
-        mock_store.async_remove.side_effect = IOError("Storage error")
-        
+        mock_store.async_remove.side_effect = OSError("Storage error")
+
         # Should not raise exception
         await types_cache.clear()
 
@@ -330,17 +332,17 @@ class TestTypesCacheRoundTrip:
             1: "Absolutní",
             3: "Derivovaná",
         }
-        
+
         # Save
         await types_cache.save(pot_types, counter_value_types)
         saved_data = mock_store.async_save.call_args[0][0]
-        
+
         # Simulate loading the saved data
         mock_store.async_load.return_value = saved_data
-        
+
         # Load
         loaded_pot_types, loaded_counter_value_types, is_valid = await types_cache.load()
-        
+
         assert is_valid is True
         assert len(loaded_pot_types) == 2
         assert loaded_pot_types[1]["jed_zkr"] == "m³"
@@ -349,4 +351,3 @@ class TestTypesCacheRoundTrip:
         assert loaded_counter_value_types[0] == "Přírustková"
         assert loaded_counter_value_types[1] == "Absolutní"
         assert loaded_counter_value_types[3] == "Derivovaná"
-

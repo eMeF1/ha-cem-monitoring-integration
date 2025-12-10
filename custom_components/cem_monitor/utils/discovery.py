@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import logging
-from typing import Any, Iterable, Optional, List, Tuple
-
 # Import from the parent utils.py module directly to avoid circular import
 import importlib.util
+import logging
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
+
 utils_file = Path(__file__).parent.parent / "utils.py"
 spec = importlib.util.spec_from_file_location("cem_utils", utils_file)
 cem_utils = importlib.util.module_from_spec(spec)
@@ -16,11 +17,21 @@ get_str = cem_utils.get_str
 _LOGGER = logging.getLogger(__name__)
 
 _WATER_NAME_HINTS = (
-    "water", "h2o", "cold water", "hot water",
-    "voda", "studena", "studená", "tepla", "teplá", "vodomer", "vodoměr",
+    "water",
+    "h2o",
+    "cold water",
+    "hot water",
+    "voda",
+    "studena",
+    "studená",
+    "tepla",
+    "teplá",
+    "vodomer",
+    "vodoměr",
 )
 _WATER_UNIT_HINTS = ("m3", "m³", "l", "lit", "liter", "litre", "liters", "litres")
 _WATER_TYPE_HINTS = ("water", "voda", "vodomer", "vodoměr")
+
 
 def _looks_like_water(item: dict[str, Any]) -> int:
     name_str = get_str(item, "name", "nazev", "název", "caption", "popis", "description")
@@ -40,6 +51,7 @@ def _looks_like_water(item: dict[str, Any]) -> int:
         score = 1
     return score
 
+
 def _get_timestamp_ms(item: dict[str, Any]) -> int:
     for k in ("timestamp", "time", "ts", "ts_ms", "timestamp_ms"):
         v = item.get(k)
@@ -49,8 +61,9 @@ def _get_timestamp_ms(item: dict[str, Any]) -> int:
             continue
     return 0
 
-def select_water_var_ids(counters: Iterable[dict[str, Any]]) -> List[int]:
-    ranked: List[Tuple[int,int,int]] = []
+
+def select_water_var_ids(counters: Iterable[dict[str, Any]]) -> list[int]:
+    ranked: list[tuple[int, int, int]] = []
     for item in counters or []:
         var_id = get_int(item, "var_id", "varId", "varid", "id")
         if var_id is None:
@@ -67,4 +80,3 @@ def select_water_var_ids(counters: Iterable[dict[str, Any]]) -> List[int]:
     else:
         _LOGGER.debug("Auto-discovery: no water-like counters found")
     return var_ids
-

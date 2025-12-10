@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import logging
-from typing import Any, Optional, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
@@ -32,7 +32,7 @@ class TypesCache:
 
     async def load(
         self,
-    ) -> Tuple[Optional[dict[int, dict[str, Any]]], Optional[dict[int, str]], bool]:
+    ) -> tuple[dict[int, dict[str, Any]] | None, dict[int, str] | None, bool]:
         """
         Load cached data from storage.
 
@@ -156,4 +156,3 @@ class TypesCache:
             _LOGGER.debug("CEM types cache: cleared")
         except Exception as err:
             _LOGGER.warning("CEM types cache: error clearing cache: %s", err)
-

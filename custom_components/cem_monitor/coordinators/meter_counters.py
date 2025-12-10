@@ -14,19 +14,19 @@ Update Frequency:
 - Every 12 hours (timedelta(hours=12))
 - Updates are triggered automatically by Home Assistant's coordinator mechanism
 """
+
 from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from ..api import CEMClient
-from .base import CEMBaseCoordinator, CEMAuthCoordinator
-from ..utils.discovery import select_water_var_ids
 from ..utils import ms_to_iso
+from ..utils.discovery import select_water_var_ids
+from .base import CEMAuthCoordinator, CEMBaseCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +34,22 @@ _LOGGER = logging.getLogger(__name__)
 class CEMMeterCountersCoordinator(CEMBaseCoordinator):
     """Counters for a specific meter (id=107&me_id=...)."""
 
-    def __init__(self, hass: HomeAssistant, client: CEMClient, auth: CEMAuthCoordinator, me_id: int, mis_id: Optional[int], me_name: Optional[str]) -> None:
-        super().__init__(hass, logger=_LOGGER, name=f"cem_monitor_counters_me_{me_id}", auth=auth, update_interval=timedelta(hours=12))
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: CEMClient,
+        auth: CEMAuthCoordinator,
+        me_id: int,
+        mis_id: int | None,
+        me_name: str | None,
+    ) -> None:
+        super().__init__(
+            hass,
+            logger=_LOGGER,
+            name=f"cem_monitor_counters_me_{me_id}",
+            auth=auth,
+            update_interval=timedelta(hours=12),
+        )
         self._client = client
         self._me_id = int(me_id)
         self._mis_id = mis_id
@@ -46,11 +60,11 @@ class CEMMeterCountersCoordinator(CEMBaseCoordinator):
         return self._me_id
 
     @property
-    def mis_id(self) -> Optional[int]:
+    def mis_id(self) -> int | None:
         return self._mis_id
 
     @property
-    def me_name(self) -> Optional[str]:
+    def me_name(self) -> str | None:
         return self._me_name
 
     async def _async_update_data(self) -> dict[str, Any]:
@@ -69,8 +83,8 @@ class CEMMeterCountersCoordinator(CEMBaseCoordinator):
 
         water_var_ids = select_water_var_ids(raw_items)
 
-        counters: List[dict] = []
-        raw_map: Dict[int, Dict[str, Any]] = {}
+        counters: list[dict] = []
+        raw_map: dict[int, dict[str, Any]] = {}
 
         for item in raw_items:
             # robust key extraction
@@ -124,6 +138,5 @@ class CEMMeterCountersCoordinator(CEMBaseCoordinator):
             "counters": counters,
             "water_var_ids": water_var_ids,
             "counters_raw": raw_items,  # full array from ID 107
-            "raw_map": raw_map,         # { var_id: full raw object }
+            "raw_map": raw_map,  # { var_id: full raw object }
         }
-

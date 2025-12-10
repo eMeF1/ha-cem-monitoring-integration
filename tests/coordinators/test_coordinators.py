@@ -1,18 +1,21 @@
 """Tests for coordinators with mocked API calls."""
-import pytest
+
 import asyncio
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timezone, timedelta
+
+import pytest
 from aiohttp import ClientResponseError
+
+from custom_components.cem_monitor.api import AuthResult, CEMClient
 
 # conftest.py handles path setup and Home Assistant mocking
 from custom_components.cem_monitor.coordinators.base import CEMAuthCoordinator
-from custom_components.cem_monitor.coordinators.userinfo import CEMUserInfoCoordinator
 from custom_components.cem_monitor.coordinators.counter_reading import CEMCounterReadingCoordinator
-from custom_components.cem_monitor.coordinators.objects import CEMObjectsCoordinator
-from custom_components.cem_monitor.coordinators.meters import CEMMetersCoordinator
 from custom_components.cem_monitor.coordinators.meter_counters import CEMMeterCountersCoordinator
-from custom_components.cem_monitor.api import CEMClient, AuthResult
+from custom_components.cem_monitor.coordinators.meters import CEMMetersCoordinator
+from custom_components.cem_monitor.coordinators.objects import CEMObjectsCoordinator
+from custom_components.cem_monitor.coordinators.userinfo import CEMUserInfoCoordinator
 
 # Use standard Exception for UpdateFailed in tests
 UpdateFailed = Exception
@@ -20,12 +23,12 @@ UpdateFailed = Exception
 
 class AsyncCreateTaskMock:
     """Mock for async_create_task that properly handles coroutines and tracks calls."""
-    
+
     def __init__(self):
         self._call_count = 0
         self._calls = []
         self._tasks = []
-    
+
     def __call__(self, coro):
         """Handle async_create_task call (synchronous, like Home Assistant)."""
         self._call_count += 1
@@ -45,12 +48,12 @@ class AsyncCreateTaskMock:
                 pass
         # Return a mock task object
         return MagicMock()
-    
+
     @property
     def called(self):
         """Check if the mock was called."""
         return self._call_count > 0
-    
+
     @property
     def call_count(self):
         """Get the number of calls."""
@@ -138,7 +141,9 @@ class TestUserInfoCoordinator:
         mock_auth_coordinator.async_request_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_userinfo_401_persists_after_refresh(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_userinfo_401_persists_after_refresh(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that persistent 401 after refresh raises UpdateFailed."""
         mock_client.get_user_info = AsyncMock(
             side_effect=ClientResponseError(None, None, status=401)
@@ -154,9 +159,11 @@ class TestUserInfoCoordinator:
         assert "authentication failed after token refresh" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_userinfo_network_error_retried(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_userinfo_network_error_retried(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that network errors are retried by API client.
-        
+
         Note: Since we're mocking get_user_info at the coordinator level, we're actually
         bypassing the API client's retry logic. This test verifies that the coordinator
         can handle network errors that occur after the API client's retry logic has
@@ -186,7 +193,9 @@ class TestUserInfoCoordinator:
             await coordinator._async_update_data()
 
         assert "UserInfo failed" in str(exc_info.value)
-        assert call_count == 1  # Coordinator catches the error after API client retries are exhausted
+        assert (
+            call_count == 1
+        )  # Coordinator catches the error after API client retries are exhausted
 
 
 class TestCounterReadingCoordinator:
@@ -195,7 +204,9 @@ class TestCounterReadingCoordinator:
     @pytest.mark.asyncio
     async def test_counter_reading_success(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test successful counter reading fetch."""
-        coordinator = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
+        coordinator = CEMCounterReadingCoordinator(
+            mock_hass, mock_client, mock_auth_coordinator, var_id=123
+        )
 
         mock_client.get_counter_reading = AsyncMock(
             return_value={"value": 123.45, "timestamp_ms": 1234567890}
@@ -207,7 +218,9 @@ class TestCounterReadingCoordinator:
         assert result["timestamp_ms"] == 1234567890
 
     @pytest.mark.asyncio
-    async def test_counter_reading_401_refresh_token(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_counter_reading_401_refresh_token(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that 401 triggers token refresh and retry."""
         call_count = 0
 
@@ -222,7 +235,9 @@ class TestCounterReadingCoordinator:
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
 
-        coordinator = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
+        coordinator = CEMCounterReadingCoordinator(
+            mock_hass, mock_client, mock_auth_coordinator, var_id=123
+        )
 
         result = await coordinator._async_update_data()
 
@@ -231,22 +246,32 @@ class TestCounterReadingCoordinator:
         mock_auth_coordinator.async_request_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_counter_reading_no_token_after_refresh(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_counter_reading_no_token_after_refresh(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that missing token after refresh raises UpdateFailed."""
         from aiohttp import RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="GET", headers={}, real_url="http://test.com")
+
+        request_info = RequestInfo(
+            url="http://test.com", method="GET", headers={}, real_url="http://test.com"
+        )
         mock_client.get_counter_reading = AsyncMock(
             side_effect=ClientResponseError(request_info, None, status=401)
         )
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = None  # Token refresh failed
 
-        coordinator = CEMCounterReadingCoordinator(mock_hass, mock_client, mock_auth_coordinator, var_id=123)
+        coordinator = CEMCounterReadingCoordinator(
+            mock_hass, mock_client, mock_auth_coordinator, var_id=123
+        )
 
         with pytest.raises(UpdateFailed) as exc_info:
             await coordinator._async_update_data()
 
-        assert "no token available after refresh" in str(exc_info.value).lower() or "no token available for counter" in str(exc_info.value).lower()
+        assert (
+            "no token available after refresh" in str(exc_info.value).lower()
+            or "no token available for counter" in str(exc_info.value).lower()
+        )
 
 
 class TestAuthCoordinator:
@@ -255,27 +280,31 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_auth_success(self, mock_hass, mock_entry):
         """Test successful authentication with valid credentials."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             future_expiry = datetime.now(timezone.utc) + timedelta(hours=2)
             valid_to_ms = int(future_expiry.timestamp() * 1000)
-            
+
             mock_client.authenticate = AsyncMock(
                 return_value=AuthResult(
                     access_token="test_access_token",
                     valid_to_ms=valid_to_ms,
-                    cookie_value="test_cookie_value"
+                    cookie_value="test_cookie_value",
                 )
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
             result = await coordinator._async_update_data()
-            
+
             assert result["connected"] is True
             assert result["cookie_present"] is True
             assert coordinator.token == "test_access_token"
@@ -287,24 +316,31 @@ class TestAuthCoordinator:
     async def test_auth_failure_401(self, mock_hass, mock_entry):
         """Test authentication failure with 401 error."""
         from aiohttp import RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
-        
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+
+        request_info = RequestInfo(
+            url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+        )
+
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             mock_client.authenticate = AsyncMock(
                 side_effect=ClientResponseError(request_info, None, status=401)
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
-            
+
             with pytest.raises(UpdateFailed) as exc_info:
                 await coordinator._async_update_data()
-            
+
             assert "Auth failed" in str(exc_info.value)
             assert coordinator.token is None
 
@@ -312,73 +348,85 @@ class TestAuthCoordinator:
     async def test_auth_failure_403(self, mock_hass, mock_entry):
         """Test authentication failure with 403 error."""
         from aiohttp import RequestInfo
-        request_info = RequestInfo(url="http://test.com", method="POST", headers={}, real_url="http://test.com")
-        
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+
+        request_info = RequestInfo(
+            url="http://test.com", method="POST", headers={}, real_url="http://test.com"
+        )
+
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             mock_client.authenticate = AsyncMock(
                 side_effect=ClientResponseError(request_info, None, status=403)
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
-            
+
             with pytest.raises(UpdateFailed) as exc_info:
                 await coordinator._async_update_data()
-            
+
             assert "Auth failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_auth_network_error(self, mock_hass, mock_entry):
         """Test authentication failure with network error."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             from aiohttp.client_exceptions import ServerTimeoutError
-            mock_client.authenticate = AsyncMock(
-                side_effect=ServerTimeoutError()
-            )
-            
+
+            mock_client.authenticate = AsyncMock(side_effect=ServerTimeoutError())
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
-            
+
             with pytest.raises(UpdateFailed) as exc_info:
                 await coordinator._async_update_data()
-            
+
             assert "Auth failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_token_expiry_calculation(self, mock_hass, mock_entry):
         """Test token expiry calculation and refresh scheduling."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             # Set expiry to 1 hour from now
             future_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
             valid_to_ms = int(future_expiry.timestamp() * 1000)
-            
+
             mock_client.authenticate = AsyncMock(
                 return_value=AuthResult(
-                    access_token="test_token",
-                    valid_to_ms=valid_to_ms,
-                    cookie_value="test_cookie"
+                    access_token="test_token", valid_to_ms=valid_to_ms, cookie_value="test_cookie"
                 )
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
             result = await coordinator._async_update_data()
-            
+
             # Should schedule refresh ~5 minutes before expiry (min 5 minutes)
             # With 1 hour expiry, should be 55 minutes (3600 - 300)
             assert result["token_expires_in_sec"] > 0
@@ -387,115 +435,129 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_expiry_short(self, mock_hass, mock_entry):
         """Test token expiry calculation for short-lived tokens."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             # Set expiry to 10 minutes from now (less than 600 seconds)
             future_expiry = datetime.now(timezone.utc) + timedelta(minutes=10)
             valid_to_ms = int(future_expiry.timestamp() * 1000)
-            
+
             mock_client.authenticate = AsyncMock(
                 return_value=AuthResult(
-                    access_token="test_token",
-                    valid_to_ms=valid_to_ms,
-                    cookie_value="test_cookie"
+                    access_token="test_token", valid_to_ms=valid_to_ms, cookie_value="test_cookie"
                 )
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
-            result = await coordinator._async_update_data()
-            
+            await coordinator._async_update_data()
+
             # Should use minimum 5 minutes (300 seconds) for short-lived tokens
             assert coordinator._update_interval_seconds == 300
 
     @pytest.mark.asyncio
     async def test_cookie_extraction(self, mock_hass, mock_entry):
         """Test cookie extraction from response."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             future_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
             valid_to_ms = int(future_expiry.timestamp() * 1000)
-            
+
             mock_client.authenticate = AsyncMock(
                 return_value=AuthResult(
                     access_token="test_token",
                     valid_to_ms=valid_to_ms,
-                    cookie_value="extracted_cookie"
+                    cookie_value="extracted_cookie",
                 )
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
             result = await coordinator._async_update_data()
-            
+
             assert result["cookie_present"] is True
             assert coordinator._last_result.cookie_value == "extracted_cookie"
 
     @pytest.mark.asyncio
     async def test_cookie_missing(self, mock_hass, mock_entry):
         """Test handling when cookie is missing from response."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             future_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
             valid_to_ms = int(future_expiry.timestamp() * 1000)
-            
+
             mock_client.authenticate = AsyncMock(
                 return_value=AuthResult(
-                    access_token="test_token",
-                    valid_to_ms=valid_to_ms,
-                    cookie_value=None
+                    access_token="test_token", valid_to_ms=valid_to_ms, cookie_value=None
                 )
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
             result = await coordinator._async_update_data()
-            
+
             assert result["cookie_present"] is False
             assert coordinator._last_result.cookie_value is None
 
     @pytest.mark.asyncio
     async def test_token_property(self, mock_hass, mock_entry):
         """Test token property returns access_token."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             future_expiry = datetime.now(timezone.utc) + timedelta(hours=1)
             valid_to_ms = int(future_expiry.timestamp() * 1000)
-            
+
             mock_client.authenticate = AsyncMock(
                 return_value=AuthResult(
                     access_token="property_test_token",
                     valid_to_ms=valid_to_ms,
-                    cookie_value="test_cookie"
+                    cookie_value="test_cookie",
                 )
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
             await coordinator._async_update_data()
-            
+
             assert coordinator.token == "property_test_token"
 
     @pytest.mark.asyncio
     async def test_token_property_none(self, mock_hass, mock_entry):
         """Test token property returns None when no auth result."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session:
+        with patch(
+            "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+        ) as mock_get_session:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
@@ -504,27 +566,29 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_expires_at_property(self, mock_hass, mock_entry):
         """Test token_expires_at property returns correct datetime."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session, \
-             patch('custom_components.cem_monitor.coordinators.base.CEMClient') as mock_client_class:
+        with (
+            patch(
+                "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+            ) as mock_get_session,
+            patch("custom_components.cem_monitor.coordinators.base.CEMClient") as mock_client_class,
+        ):
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
-            
+
             future_expiry = datetime.now(timezone.utc) + timedelta(hours=2)
             valid_to_ms = int(future_expiry.timestamp() * 1000)
-            
+
             mock_client.authenticate = AsyncMock(
                 return_value=AuthResult(
-                    access_token="test_token",
-                    valid_to_ms=valid_to_ms,
-                    cookie_value="test_cookie"
+                    access_token="test_token", valid_to_ms=valid_to_ms, cookie_value="test_cookie"
                 )
             )
-            
+
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
             await coordinator._async_update_data()
-            
+
             expires_at = coordinator.token_expires_at
             assert expires_at is not None
             assert isinstance(expires_at, datetime)
@@ -534,7 +598,9 @@ class TestAuthCoordinator:
     @pytest.mark.asyncio
     async def test_token_expires_at_property_none(self, mock_hass, mock_entry):
         """Test token_expires_at property returns None when no auth result."""
-        with patch('custom_components.cem_monitor.coordinators.base.async_get_clientsession') as mock_get_session:
+        with patch(
+            "custom_components.cem_monitor.coordinators.base.async_get_clientsession"
+        ) as mock_get_session:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             coordinator = CEMAuthCoordinator(mock_hass, mock_entry)
@@ -548,17 +614,17 @@ class TestObjectsCoordinator:
     async def test_objects_success(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test successful fetch of objects list (id=23 endpoint)."""
         coordinator = CEMObjectsCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"mis_id": 1, "mis_nazev": "Object 1", "mis_idp": None},
             {"mis_id": 2, "mis_name": "Object 2", "mis_idp": 1},
             {"id": 3, "name": "Object 3", "parent_id": 2},
         ]
-        
+
         mock_client.get_objects = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["objects"]) == 3
         assert result["objects"][0]["mis_id"] == 1
         assert result["objects"][0]["mis_name"] == "Object 1"
@@ -573,58 +639,60 @@ class TestObjectsCoordinator:
     async def test_objects_401_refresh_token(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that 401 triggers token refresh and retry."""
         call_count = 0
-        
+
         async def get_objects_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise ClientResponseError(None, None, status=401)
             return [{"mis_id": 1, "mis_nazev": "Object 1"}]
-        
+
         mock_client.get_objects = AsyncMock(side_effect=get_objects_side_effect)
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
         mock_auth_coordinator._last_result.cookie_value = "new_cookie"
-        
+
         coordinator = CEMObjectsCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["objects"]) == 1
         assert call_count == 2  # Initial call + retry after refresh
         mock_auth_coordinator.async_request_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_objects_401_persists_after_refresh(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_objects_401_persists_after_refresh(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that persistent 401 after refresh raises UpdateFailed."""
-        mock_client.get_objects = AsyncMock(
-            side_effect=ClientResponseError(None, None, status=401)
-        )
+        mock_client.get_objects = AsyncMock(side_effect=ClientResponseError(None, None, status=401))
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
-        
+
         coordinator = CEMObjectsCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         with pytest.raises(UpdateFailed) as exc_info:
             await coordinator._async_update_data()
-        
+
         assert "authentication failed after token refresh" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_objects_data_structure_parsing(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_objects_data_structure_parsing(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test data structure parsing (objects list, raw_by_mis mapping)."""
         coordinator = CEMObjectsCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"mis_id": 10, "mis_nazev": "Site A", "mis_idp": None},
             {"misid": 20, "nazev": "Site B", "parent_id": 10},
             {"id": 30, "caption": "Site C", "parent": 20},
         ]
-        
+
         mock_client.get_objects = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["objects"]) == 3
         assert result["objects"][0]["mis_id"] == 10
         assert result["objects"][0]["mis_name"] == "Site A"
@@ -642,7 +710,7 @@ class TestObjectsCoordinator:
     async def test_objects_name_extraction(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test object name extraction with various field names."""
         coordinator = CEMObjectsCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"mis_id": 1, "mis_nazev": "Name 1"},
             {"mis_id": 2, "mis_name": "Name 2"},
@@ -651,11 +719,11 @@ class TestObjectsCoordinator:
             {"mis_id": 5, "caption": "Name 5"},
             {"mis_id": 6, "description": "Name 6"},
         ]
-        
+
         mock_client.get_objects = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert result["objects"][0]["mis_name"] == "Name 1"
         assert result["objects"][1]["mis_name"] == "Name 2"
         assert result["objects"][2]["mis_name"] == "Name 3"
@@ -667,18 +735,18 @@ class TestObjectsCoordinator:
     async def test_objects_parent_hierarchy(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test parent hierarchy resolution."""
         coordinator = CEMObjectsCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"mis_id": 1, "mis_nazev": "Root", "mis_idp": None},
             {"mis_id": 2, "mis_nazev": "Child 1", "mis_idp": 1},
             {"mis_id": 3, "mis_nazev": "Child 2", "parent_id": 1},
             {"mis_id": 4, "mis_nazev": "Grandchild", "parent": 2},
         ]
-        
+
         mock_client.get_objects = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert result["objects"][0]["mis_idp"] is None  # Root has no parent
         assert result["objects"][1]["mis_idp"] == 1  # Child 1 parent is 1
         assert result["objects"][2]["mis_idp"] == 1  # Child 2 parent is 1
@@ -688,18 +756,18 @@ class TestObjectsCoordinator:
     async def test_objects_skips_invalid_items(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that items without mis_id are skipped."""
         coordinator = CEMObjectsCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"mis_id": 1, "mis_nazev": "Valid 1"},
             {"name": "Invalid - no mis_id"},
             {"mis_id": 2, "mis_nazev": "Valid 2"},
             {"some_field": "Invalid - no mis_id"},
         ]
-        
+
         mock_client.get_objects = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["objects"]) == 2
         assert result["objects"][0]["mis_id"] == 1
         assert result["objects"][1]["mis_id"] == 2
@@ -712,17 +780,17 @@ class TestMetersCoordinator:
     async def test_meters_success(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test successful fetch of meters list (id=108 endpoint)."""
         coordinator = CEMMetersCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"me_id": 101, "mis_id": 1, "name": "Meter 1"},
             {"meid": 102, "misid": 2, "nazev": "Meter 2"},
             {"meId": 103, "object_id": 1, "caption": "Meter 3"},
         ]
-        
+
         mock_client.get_meters = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["meters"]) == 3
         assert result["meters"][0]["me_id"] == 101
         assert result["meters"][0]["mis_id"] == 1
@@ -735,59 +803,59 @@ class TestMetersCoordinator:
     async def test_meters_401_refresh_token(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that 401 triggers token refresh and retry."""
         call_count = 0
-        
+
         async def get_meters_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise ClientResponseError(None, None, status=401)
             return [{"me_id": 101, "mis_id": 1, "name": "Meter 1"}]
-        
+
         mock_client.get_meters = AsyncMock(side_effect=get_meters_side_effect)
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
         mock_auth_coordinator._last_result.cookie_value = "new_cookie"
-        
+
         coordinator = CEMMetersCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["meters"]) == 1
         assert call_count == 2  # Initial call + retry after refresh
         mock_auth_coordinator.async_request_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_meters_401_persists_after_refresh(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_meters_401_persists_after_refresh(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that persistent 401 after refresh raises UpdateFailed."""
-        mock_client.get_meters = AsyncMock(
-            side_effect=ClientResponseError(None, None, status=401)
-        )
+        mock_client.get_meters = AsyncMock(side_effect=ClientResponseError(None, None, status=401))
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
-        
+
         coordinator = CEMMetersCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         with pytest.raises(UpdateFailed) as exc_info:
             await coordinator._async_update_data()
-        
+
         assert "authentication failed after token refresh" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_meters_data_parsing(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test meter data parsing (me_id, mis_id, me_name extraction)."""
         coordinator = CEMMetersCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"me_id": 201, "mis_id": 10, "name": "Water Meter"},
             {"meid": 202, "misid": 20, "nazev": "Gas Meter"},
             {"meId": 203, "object_id": 30, "caption": "Electric Meter"},
             {"id": 204, "obj_id": 40, "description": "Heat Meter"},
         ]
-        
+
         mock_client.get_meters = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["meters"]) == 4
         assert result["meters"][0]["me_id"] == 201
         assert result["meters"][0]["mis_id"] == 10
@@ -806,7 +874,7 @@ class TestMetersCoordinator:
     async def test_meters_name_extraction(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test meter name extraction with various field names."""
         coordinator = CEMMetersCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"me_id": 1, "mis_id": 1, "name": "Name 1"},
             {"me_id": 2, "mis_id": 1, "nazev": "Name 2"},
@@ -816,11 +884,11 @@ class TestMetersCoordinator:
             {"me_id": 6, "mis_id": 1, "description": "Name 6"},
             {"me_id": 7, "mis_id": 1, "me_name": "Name 7"},
         ]
-        
+
         mock_client.get_meters = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert result["meters"][0]["me_name"] == "Name 1"
         assert result["meters"][1]["me_name"] == "Name 2"
         assert result["meters"][2]["me_name"] == "Name 3"
@@ -833,18 +901,18 @@ class TestMetersCoordinator:
     async def test_meters_skips_invalid_items(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that items without me_id are skipped."""
         coordinator = CEMMetersCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_items = [
             {"me_id": 1, "mis_id": 1, "name": "Valid 1"},
             {"name": "Invalid - no me_id"},
             {"me_id": 2, "mis_id": 2, "name": "Valid 2"},
             {"some_field": "Invalid - no me_id"},
         ]
-        
+
         mock_client.get_meters = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["meters"]) == 2
         assert result["meters"][0]["me_id"] == 1
         assert result["meters"][1]["me_id"] == 2
@@ -853,14 +921,14 @@ class TestMetersCoordinator:
     async def test_meters_raw_data_preserved(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test that raw data is preserved in the result."""
         coordinator = CEMMetersCoordinator(mock_hass, mock_client, mock_auth_coordinator)
-        
+
         raw_item = {"me_id": 301, "mis_id": 1, "name": "Test Meter", "extra_field": "extra_value"}
         raw_items = [raw_item]
-        
+
         mock_client.get_meters = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert result["meters"][0]["raw"] == raw_item
         assert result["meters"][0]["raw"]["extra_field"] == "extra_value"
 
@@ -874,7 +942,7 @@ class TestMeterCountersCoordinator:
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         raw_items = [
             {
                 "var_id": 1001,
@@ -889,11 +957,11 @@ class TestMeterCountersCoordinator:
                 "timestamp": 1234567891,
             },
         ]
-        
+
         mock_client.get_counters_by_meter = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert result["me_id"] == 501
         assert result["mis_id"] == 1
         assert result["me_name"] == "Test Meter"
@@ -911,48 +979,52 @@ class TestMeterCountersCoordinator:
         assert result["raw_map"][1002] == raw_items[1]
 
     @pytest.mark.asyncio
-    async def test_meter_counters_401_refresh_token(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_meter_counters_401_refresh_token(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that 401 triggers token refresh and retry."""
         call_count = 0
-        
+
         async def get_counters_side_effect(*args, **kwargs):
             nonlocal call_count
             call_count += 1
             if call_count == 1:
                 raise ClientResponseError(None, None, status=401)
             return [{"var_id": 1001, "name": "Counter 1", "unit": "m³"}]
-        
+
         mock_client.get_counters_by_meter = AsyncMock(side_effect=get_counters_side_effect)
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
         mock_auth_coordinator._last_result.cookie_value = "new_cookie"
-        
+
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["counters"]) == 1
         assert call_count == 2  # Initial call + retry after refresh
         mock_auth_coordinator.async_request_refresh.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_meter_counters_401_persists_after_refresh(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_meter_counters_401_persists_after_refresh(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that persistent 401 after refresh raises UpdateFailed."""
         mock_client.get_counters_by_meter = AsyncMock(
             side_effect=ClientResponseError(None, None, status=401)
         )
         mock_auth_coordinator.async_request_refresh = AsyncMock()
         mock_auth_coordinator.token = "new_token"
-        
+
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         with pytest.raises(UpdateFailed) as exc_info:
             await coordinator._async_update_data()
-        
+
         assert "authentication failed after token refresh" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
@@ -961,18 +1033,18 @@ class TestMeterCountersCoordinator:
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         raw_items = [
             {"var_id": 2001, "name": "Counter 1", "unit": "m³", "timestamp_ms": 1000},
             {"varId": 2002, "nazev": "Counter 2", "jednotka": "l", "ts": 2000},
             {"varid": 2003, "caption": "Counter 3", "unit": "kWh", "time": 3000},
             {"id": 2004, "popis": "Counter 4", "unit": "m³", "ts_ms": 4000},
         ]
-        
+
         mock_client.get_counters_by_meter = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["counters"]) == 4
         assert result["counters"][0]["var_id"] == 2001
         assert result["counters"][0]["name"] == "Counter 1"
@@ -992,32 +1064,36 @@ class TestMeterCountersCoordinator:
         assert result["counters"][3]["timestamp_ms"] == 4000
 
     @pytest.mark.asyncio
-    async def test_meter_counters_raw_map_structure(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_meter_counters_raw_map_structure(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test raw_map structure."""
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         raw_item1 = {"var_id": 3001, "name": "Counter 1", "unit": "m³", "extra": "data"}
         raw_item2 = {"var_id": 3002, "name": "Counter 2", "unit": "l"}
         raw_items = [raw_item1, raw_item2]
-        
+
         mock_client.get_counters_by_meter = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["raw_map"]) == 2
         assert result["raw_map"][3001] == raw_item1
         assert result["raw_map"][3001]["extra"] == "data"
         assert result["raw_map"][3002] == raw_item2
 
     @pytest.mark.asyncio
-    async def test_meter_counters_water_var_ids_selection(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_meter_counters_water_var_ids_selection(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test water_var_ids selection via select_water_var_ids()."""
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         raw_items = [
             {"var_id": 4001, "name": "Water Counter", "unit": "m³", "type": "water"},
             {"var_id": 4002, "name": "Gas Counter", "unit": "m³", "type": "gas"},
@@ -1025,53 +1101,61 @@ class TestMeterCountersCoordinator:
             {"var_id": 4004, "name": "Hot Water", "unit": "l"},
             {"var_id": 4005, "name": "Electricity", "unit": "kWh"},
         ]
-        
+
         mock_client.get_counters_by_meter = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         # Should identify water-related counters
         assert isinstance(result["water_var_ids"], list)
         # Water counters should be in the list (4001, 4003, 4004)
-        assert 4001 in result["water_var_ids"] or 4003 in result["water_var_ids"] or 4004 in result["water_var_ids"]
+        assert (
+            4001 in result["water_var_ids"]
+            or 4003 in result["water_var_ids"]
+            or 4004 in result["water_var_ids"]
+        )
 
     @pytest.mark.asyncio
-    async def test_meter_counters_skips_invalid_items(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_meter_counters_skips_invalid_items(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that items without var_id are skipped."""
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         raw_items = [
             {"var_id": 5001, "name": "Valid 1", "unit": "m³"},
             {"name": "Invalid - no var_id", "unit": "m³"},
             {"var_id": 5002, "name": "Valid 2", "unit": "l"},
             {"some_field": "Invalid - no var_id"},
         ]
-        
+
         mock_client.get_counters_by_meter = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert len(result["counters"]) == 2
         assert result["counters"][0]["var_id"] == 5001
         assert result["counters"][1]["var_id"] == 5002
 
     @pytest.mark.asyncio
-    async def test_meter_counters_timestamp_iso(self, mock_hass, mock_client, mock_auth_coordinator):
+    async def test_meter_counters_timestamp_iso(
+        self, mock_hass, mock_client, mock_auth_coordinator
+    ):
         """Test that timestamp_iso is generated from timestamp_ms."""
         coordinator = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=501, mis_id=1, me_name="Test Meter"
         )
-        
+
         raw_items = [
             {"var_id": 6001, "name": "Counter 1", "unit": "m³", "timestamp_ms": 1234567890000},
         ]
-        
+
         mock_client.get_counters_by_meter = AsyncMock(return_value=raw_items)
-        
+
         result = await coordinator._async_update_data()
-        
+
         assert result["counters"][0]["timestamp_ms"] == 1234567890000
         assert result["counters"][0]["timestamp_iso"] is not None
         assert isinstance(result["counters"][0]["timestamp_iso"], str)
@@ -1080,19 +1164,23 @@ class TestMeterCountersCoordinator:
     async def test_meter_counters_properties(self, mock_hass, mock_client, mock_auth_coordinator):
         """Test coordinator properties (me_id, mis_id, me_name)."""
         coordinator = CEMMeterCountersCoordinator(
-            mock_hass, mock_client, mock_auth_coordinator, me_id=701, mis_id=10, me_name="Property Test Meter"
+            mock_hass,
+            mock_client,
+            mock_auth_coordinator,
+            me_id=701,
+            mis_id=10,
+            me_name="Property Test Meter",
         )
-        
+
         assert coordinator.me_id == 701
         assert coordinator.mis_id == 10
         assert coordinator.me_name == "Property Test Meter"
-        
+
         # Test with None values
         coordinator2 = CEMMeterCountersCoordinator(
             mock_hass, mock_client, mock_auth_coordinator, me_id=702, mis_id=None, me_name=None
         )
-        
+
         assert coordinator2.me_id == 702
         assert coordinator2.mis_id is None
         assert coordinator2.me_name is None
-

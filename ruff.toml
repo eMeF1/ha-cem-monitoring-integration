@@ -16,6 +16,7 @@ select = [
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "E402",  # module level import not at top of file (false positive for imports after comments)
     "B008",  # do not perform function calls in argument defaults
     "B904",  # allow `raise` without specifying exception in except blocks
 ]

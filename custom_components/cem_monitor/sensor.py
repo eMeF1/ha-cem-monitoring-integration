@@ -1,30 +1,29 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Optional, List
-
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.const import EntityCategory, UnitOfVolume
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers import device_registry as dr
-
 import logging
+from datetime import datetime, timezone
+from typing import Any
+
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 _LOGGER = logging.getLogger(__name__)
 
 from .const import (
-    DOMAIN,
-    ATTR_TOKEN_EXPIRES_AT,
     # ATTR_TOKEN_EXPIRES_IN,  # intentionally unused
     ATTR_COOKIE_PRESENT,
+    ATTR_TOKEN_EXPIRES_AT,
+    DOMAIN,
 )
 from .coordinators import (
     CEMAuthCoordinator,
-    CEMUserInfoCoordinator,
-    CEMMeterCountersCoordinator,
     CEMCounterReadingCoordinator,
+    CEMMeterCountersCoordinator,
+    CEMUserInfoCoordinator,
 )
 from .utils import slug_int, slug_text
 
@@ -44,17 +43,17 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
     # Create generic counter sensors per meter/var, attached to the OBJECT device (mis).
     for me_id, meta in meters_map.items():
         counters: CEMMeterCountersCoordinator = meta["counters"]
-        me_serial: Optional[str] = meta.get("me_serial")
-        mis_id: Optional[int] = meta.get("mis_id")
-        mis_name: Optional[str] = meta.get("mis_name")
+        me_serial: str | None = meta.get("me_serial")
+        mis_id: int | None = meta.get("mis_id")
+        mis_name: str | None = meta.get("mis_name")
 
         counter_readings: dict[int, CEMCounterReadingCoordinator] = meta.get("counter_readings", {})
         counters_meta: dict[int, dict] = meta.get("counters_meta", {}) or {}
 
         for vid, wc in counter_readings.items():
-            pot_id: Optional[int] = None
-            pot_info: Optional[dict[str, Any]] = None
-            cik_nazev: Optional[str] = None
+            pot_id: int | None = None
+            pot_info: dict[str, Any] | None = None
+            cik_nazev: str | None = None
 
             # 1) Prefer metadata precomputed in __init__.py
             meta_for_var = counters_meta.get(int(vid)) or counters_meta.get(vid)
@@ -100,18 +99,18 @@ async def async_setup_entry(hass, entry: ConfigEntry, async_add_entities):
 
 class _DeviceInfoHelper:
     @staticmethod
-    def account_label(ui_data: dict[str, Any]) -> tuple[Optional[int], Optional[str]]:
+    def account_label(ui_data: dict[str, Any]) -> tuple[int | None, str | None]:
         return ui_data.get("company_id"), (ui_data.get("display_name") or ui_data.get("company"))
 
     @staticmethod
-    def desired_account_name(label: Optional[str]) -> str:
+    def desired_account_name(label: str | None) -> str:
         # Device name must be EXACTLY "CEM Account <label>" (no company ID here)
         if label and label.strip():
             return f"CEM Account {label.strip()}"
         return "CEM Account"
 
     @staticmethod
-    def desired_object_name(mis_name: Optional[str], mis_id: Optional[int]) -> str:
+    def desired_object_name(mis_name: str | None, mis_id: int | None) -> str:
         if isinstance(mis_name, str) and mis_name.strip():
             return f"CEM Object {mis_name.strip()}"
         if mis_id is not None:
@@ -119,7 +118,9 @@ class _DeviceInfoHelper:
         return "CEM Object"
 
     @staticmethod
-    def build_account(entry: ConfigEntry, company_id: Optional[int], label: Optional[str]) -> DeviceInfo:
+    def build_account(
+        entry: ConfigEntry, company_id: int | None, label: str | None
+    ) -> DeviceInfo:
         model = f"CEM Account {label}" if label and label.strip() else "CEM Account"
         return DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id, "account")},
@@ -131,11 +132,15 @@ class _DeviceInfoHelper:
     @staticmethod
     def build_object(
         entry: ConfigEntry,
-        company_id: Optional[int],
-        mis_id: Optional[int],
-        mis_name: Optional[str],
+        company_id: int | None,
+        mis_id: int | None,
+        mis_name: str | None,
     ) -> DeviceInfo:
-        ident = (DOMAIN, entry.entry_id, f"mis:{mis_id}") if mis_id is not None else (DOMAIN, entry.entry_id, "mis:unknown")
+        ident = (
+            (DOMAIN, entry.entry_id, f"mis:{mis_id}")
+            if mis_id is not None
+            else (DOMAIN, entry.entry_id, "mis:unknown")
+        )
         if isinstance(mis_name, str) and mis_name.strip():
             model = f"CEM Object {mis_name.strip()}"
         elif mis_id is not None:
@@ -156,15 +161,21 @@ class CEMApiStatusSensor(CoordinatorEntity[CEMAuthCoordinator], SensorEntity):
     _attr_icon = "mdi:cloud-check-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator: CEMAuthCoordinator, ui: CEMUserInfoCoordinator, entry: ConfigEntry) -> None:
+    def __init__(
+        self, coordinator: CEMAuthCoordinator, ui: CEMUserInfoCoordinator, entry: ConfigEntry
+    ) -> None:
         super().__init__(coordinator)
         self._entry = entry
         self._ui = ui
         self._attr_unique_id = f"{entry.entry_id}_api_status"
         company_id = (self._ui.data or {}).get("company_id")
         # Keep company id in the entity_id for uniqueness across accounts:
-        name_label = (self._ui.data or {}).get("display_name") or (self._ui.data or {}).get("company")
-        self._attr_suggested_object_id = f"cem_account_{slug_text(name_label)}_{slug_int(company_id)}_status"
+        name_label = (self._ui.data or {}).get("display_name") or (self._ui.data or {}).get(
+            "company"
+        )
+        self._attr_suggested_object_id = (
+            f"cem_account_{slug_text(name_label)}_{slug_int(company_id)}_status"
+        )
 
     async def async_added_to_hass(self) -> None:
         # First let CoordinatorEntity register the listener
@@ -216,8 +227,12 @@ class CEMAccountSensor(CoordinatorEntity[CEMUserInfoCoordinator], SensorEntity):
         self._attr_unique_id = f"{entry.entry_id}_account"
         # Keep company id in the entity_id for uniqueness; visible name remains just "Account"
         company_id = (self.coordinator.data or {}).get("company_id")
-        name_label = (self.coordinator.data or {}).get("display_name") or (self.coordinator.data or {}).get("company")
-        self._attr_suggested_object_id = f"cem_account_{slug_text(name_label)}_{slug_int(company_id)}_account"
+        name_label = (self.coordinator.data or {}).get("display_name") or (
+            self.coordinator.data or {}
+        ).get("company")
+        self._attr_suggested_object_id = (
+            f"cem_account_{slug_text(name_label)}_{slug_int(company_id)}_account"
+        )
 
     async def async_added_to_hass(self) -> None:
         # First let CoordinatorEntity register the listener
@@ -272,12 +287,12 @@ class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEn
         entry: ConfigEntry,
         me_id: int,
         var_id: int,
-        me_serial: Optional[str],
-        mis_id: Optional[int],
-        mis_name: Optional[str],
-        pot_id: Optional[int],
-        pot_info: Optional[dict[str, Any]],
-        cik_nazev: Optional[str] = None,
+        me_serial: str | None,
+        mis_id: int | None,
+        mis_name: str | None,
+        pot_id: int | None,
+        pot_info: dict[str, Any] | None,
+        cik_nazev: str | None = None,
     ) -> None:
         super().__init__(coordinator)
         self._entry = entry
@@ -315,7 +330,9 @@ class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEn
         self._attr_name = f"{base_name} [{label}]"
         self._attr_unique_id = f"{entry.entry_id}_mis_{mis_id}_me_{me_id}_var_{var_id}"
 
-        mis_slug = slug_text(mis_name if isinstance(mis_name, str) and mis_name.strip() else str(mis_id))
+        mis_slug = slug_text(
+            mis_name if isinstance(mis_name, str) and mis_name.strip() else str(mis_id)
+        )
         self._attr_suggested_object_id = f"cem_object_{mis_slug}_meter_{label}_var_{var_id}"
 
         # Decide unit and state/device classes
@@ -346,7 +363,9 @@ class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEn
 
         # Ensure the Object device has the desired name
         devreg = dr.async_get(self.hass)
-        device = devreg.async_get_device(identifiers={(DOMAIN, self._entry.entry_id, f"mis:{self._mis_id}")})
+        device = devreg.async_get_device(
+            identifiers={(DOMAIN, self._entry.entry_id, f"mis:{self._mis_id}")}
+        )
         desired = _DeviceInfoHelper.desired_object_name(self._mis_name, self._mis_id)
         if device and device.name != desired:
             devreg.async_update_device(device.id, name=desired)
@@ -360,7 +379,7 @@ class CEMCounterSensor(CoordinatorEntity[CEMCounterReadingCoordinator], SensorEn
             self._mis_name,
         )
 
-    def _meta(self) -> tuple[Optional[str], Optional[str]]:
+    def _meta(self) -> tuple[str | None, str | None]:
         counters = (self._counters.data or {}).get("counters") or []
         for c in counters:
             try:
