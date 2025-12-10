@@ -270,7 +270,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 from aiohttp import ClientTimeout
 
                 timeout = ClientTimeout(total=20)
-                async with client._session.get(url, headers=headers, timeout=timeout) as resp:  # type: ignore[attr-defined]
+                async with client._session.get(url, headers=headers, timeout=timeout) as resp:
                     resp.raise_for_status()
                     text = await resp.text()
                     _LOGGER.debug("CEM get_raw counter_last: HTTP %s", resp.status)
