@@ -248,7 +248,66 @@ class TestGetObjects:
         result = await client.get_objects("token", "cookie")
 
         assert result == []
+
         assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_get_objects_success_list_real(self, client, mock_session):
+        """Test successful get_objects with real API response format (plain array)."""
+        # Real API response format - plain array (not wrapped)
+        real_api_response = [
+            {
+                "mis_id": 116850,
+                "mis_idp": 117761,
+                "mit_id": 3,
+                "mis_nazev": "A 133",
+                "mis_nazev2": None,
+                "mis_od": 1609372800000,
+                "mis_do": None,
+                "mis_extid1": None,
+                "mis_extid2": None,
+                "adr_id": None,
+                "mis_sort": 13,
+                "mis_pzn": None,
+                "prk_id": None,
+                "mis_inst_pzn": None,
+            },
+            {
+                "mis_id": 116900,
+                "mis_idp": 116850,
+                "mit_id": -1000,
+                "mis_nazev": "",
+                "mis_nazev2": None,
+                "mis_od": 1609372800000,
+                "mis_do": None,
+                "mis_extid1": None,
+                "mis_extid2": None,
+                "adr_id": None,
+                "mis_sort": 1,
+                "mis_pzn": None,
+                "prk_id": None,
+                "mis_inst_pzn": None,
+            },
+        ]
+
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        import json
+
+        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
+        mock_response.json = AsyncMock(return_value=real_api_response)
+        mock_response.raise_for_status = MagicMock()
+
+        mock_session._get_context.set_response(mock_response)
+
+        result = await client.get_objects("token", "cookie")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["mis_id"] == 116850
+        assert result[0]["mis_nazev"] == "A 133"
+        assert result[1]["mis_id"] == 116900
+        assert result[1]["mis_nazev"] == ""  # Empty name (unnamed object)
 
 
 class TestGetCounterReading:
@@ -1124,65 +1183,3 @@ class TestGetCountersForObject:
         assert result[0]["var_id"] == 104437
         assert result[0]["pot_id"] == 3
         assert result[0]["me_id"] == 80225
-
-
-class TestGetObjects:
-    """Test get_objects method with real API response format."""
-
-    @pytest.mark.asyncio
-    async def test_get_objects_success_list_real(self, client, mock_session):
-        """Test successful get_objects with real API response format (plain array)."""
-        # Real API response format - plain array (not wrapped)
-        real_api_response = [
-            {
-                "mis_id": 116850,
-                "mis_idp": 117761,
-                "mit_id": 3,
-                "mis_nazev": "A 133",
-                "mis_nazev2": None,
-                "mis_od": 1609372800000,
-                "mis_do": None,
-                "mis_extid1": None,
-                "mis_extid2": None,
-                "adr_id": None,
-                "mis_sort": 13,
-                "mis_pzn": None,
-                "prk_id": None,
-                "mis_inst_pzn": None,
-            },
-            {
-                "mis_id": 116900,
-                "mis_idp": 116850,
-                "mit_id": -1000,
-                "mis_nazev": "",
-                "mis_nazev2": None,
-                "mis_od": 1609372800000,
-                "mis_do": None,
-                "mis_extid1": None,
-                "mis_extid2": None,
-                "adr_id": None,
-                "mis_sort": 1,
-                "mis_pzn": None,
-                "prk_id": None,
-                "mis_inst_pzn": None,
-            },
-        ]
-
-        mock_response = AsyncMock()
-        mock_response.status = 200
-        import json
-
-        mock_response.text = AsyncMock(return_value=json.dumps(real_api_response))
-        mock_response.json = AsyncMock(return_value=real_api_response)
-        mock_response.raise_for_status = MagicMock()
-
-        mock_session._get_context.set_response(mock_response)
-
-        result = await client.get_objects("token", "cookie")
-
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert result[0]["mis_id"] == 116850
-        assert result[0]["mis_nazev"] == "A 133"
-        assert result[1]["mis_id"] == 116900
-        assert result[1]["mis_nazev"] == ""  # Empty name (unnamed object)
