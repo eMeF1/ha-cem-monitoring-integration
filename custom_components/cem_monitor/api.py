@@ -413,7 +413,7 @@ class CEMClient:
                     text[:300],
                 )
                 data = await resp.json(content_type=None)
-                return data
+                return data if isinstance(data, dict) else {}
 
         return await async_retry_with_backoff(_do_get_pot_types, context="CEM pot_types")
 
@@ -440,7 +440,7 @@ class CEMClient:
                     text[:300],
                 )
                 data = await resp.json(content_type=None)
-                return data
+                return data if isinstance(data, dict) else {}
 
         return await async_retry_with_backoff(
             _do_get_counter_value_types, context="CEM counter_value_types"

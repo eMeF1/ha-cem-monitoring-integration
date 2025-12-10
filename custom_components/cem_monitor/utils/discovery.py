@@ -9,6 +9,8 @@ from typing import Any
 
 utils_file = Path(__file__).parent.parent / "utils.py"
 spec = importlib.util.spec_from_file_location("cem_utils", utils_file)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Could not load spec from {utils_file}")
 cem_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cem_utils)
 get_int = cem_utils.get_int
@@ -55,6 +57,8 @@ def _looks_like_water(item: dict[str, Any]) -> int:
 def _get_timestamp_ms(item: dict[str, Any]) -> int:
     for k in ("timestamp", "time", "ts", "ts_ms", "timestamp_ms"):
         v = item.get(k)
+        if v is None:
+            continue
         try:
             return int(v)
         except Exception:

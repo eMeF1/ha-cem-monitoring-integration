@@ -48,7 +48,7 @@ def _create_session(hass: HomeAssistant, verify_ssl: bool = True) -> ClientSessi
         ClientSession configured with appropriate SSL settings
     """
     if verify_ssl:
-        return async_get_clientsession(hass)
+        return async_get_clientsession(hass)  # type: ignore[no-any-return]
 
     # Create session with SSL verification disabled
     _LOGGER.warning(

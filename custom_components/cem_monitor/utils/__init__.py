@@ -7,6 +7,8 @@ from pathlib import Path
 # Load the parent utils.py module
 utils_file = Path(__file__).parent.parent / "utils.py"
 spec = importlib.util.spec_from_file_location("cem_utils_module", utils_file)
+if spec is None or spec.loader is None:
+    raise ImportError(f"Could not load spec from {utils_file}")
 cem_utils_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cem_utils_module)
 

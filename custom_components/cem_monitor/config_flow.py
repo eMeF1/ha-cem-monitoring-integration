@@ -52,18 +52,21 @@ def _resolve_object_name(
         return None, None
 
     visited: set[int] = set()
-    cur = int(mis_id)
+    cur: int | None = int(mis_id)
 
-    while cur and cur not in visited:
+    while cur is not None and cur not in visited:
         visited.add(cur)
         name = mis_name_by_id.get(cur)
         if get_str_nonempty(name):
             return name, cur
         raw = raw_by_mis.get(cur) or {}
         parent = raw.get("mis_idp")
-        try:
-            cur = int(parent) if parent is not None else None
-        except Exception:
+        if parent is not None:
+            try:
+                cur = int(parent)
+            except Exception:
+                cur = None
+        else:
             cur = None
 
     return None, None
@@ -227,7 +230,7 @@ async def _fetch_objects_tree(
     return objects_map
 
 
-class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class CEMConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     VERSION = 1
 
     async def async_step_user(self, user_input=None) -> FlowResult:
@@ -449,16 +452,15 @@ class CEMOptionsFlow(config_entries.OptionsFlow):
             verify_ssl = user_input.get(CONF_VERIFY_SSL, True)
 
             if not errors:
-                options_data = {}
+                options_data: dict[str, Any] = {}
                 # Only store var_ids if provided (empty list means show all)
                 if var_ids:
                     options_data[CONF_VAR_IDS] = var_ids
                 # Always store the interval (default is set in schema, so it's always present)
-                interval_value = (
-                    int(interval)
-                    if interval is not None
-                    else DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
-                )
+                if interval is not None:
+                    interval_value = int(interval)
+                else:
+                    interval_value = DEFAULT_COUNTER_UPDATE_INTERVAL_MINUTES
                 options_data[CONF_COUNTER_UPDATE_INTERVAL_MINUTES] = interval_value
 
                 # Update entry.data with verify_ssl if it changed

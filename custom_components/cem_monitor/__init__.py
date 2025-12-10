@@ -77,18 +77,21 @@ def _resolve_object_name(
         return None, None
 
     visited: set[int] = set()
-    cur = int(mis_id)
+    cur: int | None = int(mis_id)
 
-    while cur and cur not in visited:
+    while cur is not None and cur not in visited:
         visited.add(cur)
         name = mis_name_by_id.get(cur)
         if get_str_nonempty(name):
             return name, cur
         raw = raw_by_mis.get(cur) or {}
         parent = raw.get("mis_idp")
-        try:
-            cur = int(parent) if parent is not None else None
-        except Exception:
+        if parent is not None:
+            try:
+                cur = int(parent)
+            except Exception:
+                cur = None
+        else:
             cur = None
 
     return None, None
@@ -235,6 +238,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         cookie = auth._last_result.cookie_value if auth._last_result else None
 
+        data: Any = None
         try:
             if endpoint == "user_info":
                 data = await client.get_user_info(token, cookie)
@@ -242,6 +246,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 data = await client.get_objects(token, cookie)
             elif endpoint == "meters":
                 mis_id = call.data.get("mis_id")
+                if mis_id is None:
+                    _LOGGER.error("CEM get_raw: mis_id is required for meters")
+                    return
                 data = await client.get_meters(token, cookie, mis_id)
             elif endpoint == "counters_by_meter":
                 me_id = call.data.get("me_id")
@@ -355,9 +362,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     bag["pot_types"] = pot_by_id
     bag["counter_value_types"] = counter_value_types
-    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id))
+    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id) if pot_by_id else 0)
     _LOGGER.debug(
-        "CEM counter_value_types: loaded %d value type definitions", len(counter_value_types)
+        "CEM counter_value_types: loaded %d value type definitions", len(counter_value_types) if counter_value_types else 0
     )
 
     # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
@@ -413,7 +420,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     pot_id_int = int(pot_id_raw)
                 except Exception:
                     pot_id_int = None
-                if pot_id_int is not None:
+                if pot_id_int is not None and pot_by_id is not None:
                     pot_info = pot_by_id.get(pot_id_int)
 
             # 4) Resolve pot_type from pot_info (CEM: 0=instantaneous,1=total,2=state,3=derived)
@@ -437,7 +444,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
             # Lookup cik_nazev from counter_value_types using pot_type
             cik_nazev: str | None = None
-            if pot_type is not None:
+            if pot_type is not None and counter_value_types is not None:
                 cik_nazev = counter_value_types.get(pot_type)
 
             meter_counters_meta[vid] = {
