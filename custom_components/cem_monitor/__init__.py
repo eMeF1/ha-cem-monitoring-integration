@@ -349,11 +349,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     # If cache is valid but counter_value_types is empty, treat as cache miss
     # (this handles the case where old cached data had empty counter_value_types due to bug)
-    if cache_valid and (counter_value_types is None or len(counter_value_types) == 0):
-        _LOGGER.warning(
-            "CEM types cache: cache has empty counter_value_types, forcing refresh from API"
+    if cache_valid:
+        is_empty = counter_value_types is None or (
+            isinstance(counter_value_types, dict) and len(counter_value_types) == 0
         )
-        cache_valid = False
+        if is_empty:
+            _LOGGER.warning(
+                "CEM types cache: cache has empty counter_value_types (None=%s, type=%s, len=%s), forcing refresh from API",
+                counter_value_types is None,
+                type(counter_value_types).__name__,
+                len(counter_value_types) if isinstance(counter_value_types, dict) else "N/A",
+            )
+            cache_valid = False
 
     if not cache_valid:
         # Cache miss/invalid/expired - fetch from API
@@ -363,9 +370,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         counter_value_types = await _fetch_counter_value_types_from_api(client, token, cookie)
 
         # Save to cache for next time (only if we got valid data)
-        if pot_by_id or counter_value_types:
+        # Don't save empty counter_value_types - we want to force refresh next time if it's empty
+        if pot_by_id and counter_value_types and len(counter_value_types) > 0:
             await types_cache.save(pot_by_id, counter_value_types)
             _LOGGER.debug("CEM types cache: saved fetched data to cache")
+        elif pot_by_id:
+            # Save pot_types even if counter_value_types is empty (will force refresh next time)
+            await types_cache.save(pot_by_id, {})
+            _LOGGER.debug(
+                "CEM types cache: saved pot_types only (counter_value_types empty or failed)"
+            )
     else:
         _LOGGER.debug("CEM types cache: loaded from cache")
 
