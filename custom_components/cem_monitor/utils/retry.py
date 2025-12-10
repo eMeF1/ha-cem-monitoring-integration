@@ -63,9 +63,10 @@ def is_401_error(error: Exception) -> bool:
         return error.status == 401
     try:
         error_str: str = str(error)
+        result: bool = "401" in error_str
+        return result
     except Exception:
         return False
-    return "401" in error_str
 
 
 async def async_retry_with_backoff(

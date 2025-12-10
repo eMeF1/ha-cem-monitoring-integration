@@ -362,9 +362,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     bag["pot_types"] = pot_by_id
     bag["counter_value_types"] = counter_value_types
-    _LOGGER.debug("CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id) if pot_by_id else 0)
     _LOGGER.debug(
-        "CEM counter_value_types: loaded %d value type definitions", len(counter_value_types) if counter_value_types else 0
+        "CEM pot_types: loaded %d pot/unit definitions", len(pot_by_id) if pot_by_id else 0
+    )
+    _LOGGER.debug(
+        "CEM counter_value_types: loaded %d value type definitions",
+        len(counter_value_types) if counter_value_types else 0,
     )
 
     # 5) For each meter: fetch counters (id=107), select numeric counters, wire coordinators (id=8)
