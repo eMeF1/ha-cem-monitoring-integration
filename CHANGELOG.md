@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.5] - 2025-12-11
+
+### Fixed
+- Improved cache refresh logic for `counter_value_types` with better empty-value detection
+  - Enhanced logging shows exact state when forcing refresh (None, type, length)
+  - More robust check handles edge cases correctly
+- Fixed cache save logic to prevent saving empty `counter_value_types`
+  - Only saves to cache if `counter_value_types` has valid data (length > 0)
+  - Prevents empty mappings from being cached and reused
+
+### Technical
+- All 153 tests passing (34 API tests, improved coverage to 87%)
+
 ## [0.7.4] - 2025-12-10
 
 ### Fixed
@@ -109,7 +122,8 @@ This release contains internal restructuring only. No breaking changes for end u
 - Sensor entities for counter readings
 - Device structure for accounts and objects
 
-[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.4...HEAD
+[Unreleased]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.5...HEAD
+[0.7.5]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.4...v0.7.5
 [0.7.4]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.3...v0.7.4
 [0.7.3]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.2...v0.7.3
 [0.7.2]: https://github.com/eMeF1/ha-cem-monitoring-integration/compare/v0.7.1...v0.7.2
