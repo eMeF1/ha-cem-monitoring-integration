@@ -265,7 +265,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                 # so we re-implement the call similar to CEMClient.get_counter_reading
                 from .const import COUNTER_LAST_URL
 
-                headers = await client._auth_headers(token, cookie)  # type: ignore[attr-defined]
+                headers = await client._auth_headers(token, cookie)
                 url = f"{COUNTER_LAST_URL}&var_id={int(var_id)}"
                 from aiohttp import ClientTimeout
 
